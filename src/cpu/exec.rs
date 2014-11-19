@@ -3,7 +3,8 @@
 //! (Inspired by alexchricton's GB emulator)
 
 use cpu::Cpu;
-use mmu::MemMap;
+use mmu::Memory;
+use cpu::disasm;
 
 // Flags for the GB processor:
 pub const ZERO_FLAG: u8 = 0b1000_0000;
@@ -14,12 +15,12 @@ pub const CARRY_FLAG: u8 = 0b0001_0000;
 
 /// Fetch and execute the next instruction, returning the number of cycles used to complete the
 /// operation.
-pub fn fetch_exec(cpu: &mut Cpu, mem: &mut MemMap) -> u8 {
+pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
     // Read the next byte after pc, useful for instructions requiring a `n` parameter
     macro_rules! get_n { () => (mem.lb(cpu.bump())) }
     // Read the next two bytes after pc, useful for instructions requiring a `nn` parameter
     macro_rules! get_nn { () => (
-        (get_n!() as u16 << 8) + get_n!() as u16
+        get_n!() as u16 + (get_n!() as u16 << 8)
     ) }
     // Check if the zero flag is set
     macro_rules! zflag { () => ( cpu.f & ZERO_FLAG != 0 ) }
@@ -122,10 +123,11 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut MemMap) -> u8 {
 
     // ADD A, s
     macro_rules! add_a { ($s: expr) => ({
+        let val = $s;
         cpu.f = 0;
-        if (cpu.a & 0xf) + ($s & 0xf) > 0xf { cpu.f |= HALF_CARRY_FLAG; }
-        if cpu.a as u16 + $s as u16 > 0xff { cpu.f |= CARRY_FLAG; }
-        cpu.a += $s;
+        if (cpu.a & 0xf) + (val & 0xf) > 0xf { cpu.f |= HALF_CARRY_FLAG; }
+        if cpu.a as u16 + val as u16 > 0xff { cpu.f |= CARRY_FLAG; }
+        cpu.a += val;
         if cpu.a == 0 { cpu.f |= ZERO_FLAG; }
     }) }
     macro_rules! add_an { () => (add_a!(get_n!())) }
@@ -168,10 +170,11 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut MemMap) -> u8 {
 
     // CP A, s
     macro_rules! cp_a { ($s: expr) => ({
+        let val = $s;
         cpu.f = ADD_SUB_FLAG;
-        if (cpu.a & 0xf) < ($s & 0xf) { cpu.f |= HALF_CARRY_FLAG; }
-        if cpu.a < $s { cpu.f |= CARRY_FLAG; }
-        if cpu.a == $s { cpu.f |= ZERO_FLAG; }
+        if (cpu.a & 0xf) < (val & 0xf) { cpu.f |= HALF_CARRY_FLAG; }
+        if cpu.a < val { cpu.f |= CARRY_FLAG; }
+        if cpu.a == val { cpu.f |= ZERO_FLAG; }
     }) }
     macro_rules! cp_an { () => (cp_a!(get_n!())) }
     macro_rules! cp_ar { ($r: ident) => (cp_a!(cpu.$r)) }
@@ -179,8 +182,9 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut MemMap) -> u8 {
 
     // SUB A, s
     macro_rules! sub_a { ($s: expr) => ({
-        cp_a!($s);
-        cpu.a -= $s;
+        let val = $s;
+        cp_a!(val);
+        cpu.a -= val;
     }) }
     macro_rules! sub_an { () => (sub_a!(get_n!())) }
     macro_rules! sub_ar { ($r: ident) => (sub_a!(cpu.$r)) }
@@ -429,6 +433,7 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut MemMap) -> u8 {
     macro_rules! stop { () => ( cpu.stop(); ) }
 
     // Fetch the next instruction from memory
+    println!("0x{:04X}:\t{}", cpu.pc, disasm::disasm(cpu.pc, mem));
     let op = mem.lb(cpu.bump());
 
     // Decode and execute the instruction, returning the number of cycles required to run it.
@@ -643,8 +648,8 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut MemMap) -> u8 {
         0xC0 => { ret_c!(!zflag!())       }, // 5;2
         0xC1 => { pop_qq!(bc);          3 },
         0xC2 => { jp_cnn!(!zflag!())      }, // 4;3
-        0xC3 => { call_cnn!(!zflag!())    }, // 6;3
-        0xC4 => { jp_nn!();             4 },
+        0xC3 => { jp_nn!();             4 },
+        0xC4 => { call_cnn!(!zflag!())    }, // 6;3
         0xC5 => { push_qq!(bc);         3 },
         0xC6 => { add_an!();            2 },
         0xC7 => { rst_p!(0x00);         4 },
@@ -715,7 +720,7 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut MemMap) -> u8 {
 
 /// Execute 2-byte opcodes, returning the number of cycles required for executing the
 /// instruction
-fn exec_long(cpu: &mut Cpu, mem: &mut MemMap) -> u8 {
+fn exec_long(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
     //
     // Implementation of z80 two byte instructions
     //

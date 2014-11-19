@@ -1,11 +1,29 @@
+use std::num::Int;
+
 use cpu::exec::fetch_exec;
-use mmu::MemMap;
+use mmu::Memory;
 
 pub mod exec;
+pub mod disasm;
 
-/// The clock speed of the CPU in nanoseconds.
-pub const T_CLOCK_SPEED: f32 = 238.418; // == 4,194,304Hz
+const INTERRUPT_TABLE: &'static [u16] = &[
+    0x0040,   // V-Blank
+    0x0048,   // LCD STAT
+    0x0050,   // Timer
+    0x0058,   // Serial
+    0x0060,   // Joypad
+];
 
+// FIXME(minor): Remove this when the remaining interrupts have been implemented
+#[allow(dead_code)]
+#[repr(u8)]
+pub enum Interrupt {
+    VBlank = 0b00000001,
+    Stat   = 0b00000010,
+    Timer  = 0b00000100,
+    Serial = 0b00001000,
+    Joypad = 0b00010000,
+}
 
 #[deriving(PartialEq)]
 pub enum State {
@@ -55,59 +73,103 @@ impl Cpu {
             sp: 0,
             pc: 0,
 
-            state: Running,
+            state: State::Crashed,
             clock: 0,
         }
     }
 
-    /// Steps the CPU.
-    pub fn step(&mut self, mem: &mut MemMap) {
-        if self.state == Crashed {
-            return;
+    pub fn start_up(&mut self) {
+        // TODO(major): Add support for SGB and CGB
+        self.af().set(0x01B0);
+        self.bc().set(0x0013);
+        self.de().set(0x00D8);
+        self.hl().set(0x014D);
+        self.sp = 0xFFFE;
+        self.pc = 0x0100;
+
+        self.state = State::Running;
+    }
+
+    /// Steps the CPU returning the number of elapsed cycles
+    pub fn step(&mut self, mem: &mut Memory) -> u8 {
+        if self.state == State::Crashed {
+            return 0xFF;
         }
 
-        // Check for interrupts
+        let mut elapsed_cycles = 0;
+        if self.ime != 0 {
+            elapsed_cycles += self.handle_interrupts(mem);
+        }
 
-        let cost = fetch_exec(self, mem);
-        self.clock += cost;
+        if self.state != State::Halted && self.state != State::Stopped {
+            elapsed_cycles += fetch_exec(self, mem);
+        }
+
+        // TODO: add support for CGB double speed mode
+        self.clock += elapsed_cycles * 4;
+
+        elapsed_cycles * 4
+    }
+
+    /// Handles interrupts
+    /// Returns the amount of elapsed cycles (if any) as a result of processing interrupts.
+    fn handle_interrupts(&mut self, mem: &mut Memory) -> u8 {
+        let interrupts = mem.if_reg & mem.ie_reg;
+
+        if interrupts == 0 {
+            return 0;
+        }
+
+        // Get the highest priority interrupt
+        let i = interrupts.trailing_zeros();
+
+        // Push the return location onto the stack
+        self.sp -= 2;
+        mem.sw(self.sp, self.pc);
+
+        // Jump to the correct interrupt handler
+        self.pc = INTERRUPT_TABLE[i];
+        self.state = State::Running;
+
+        1
     }
 
     /// Enables CPU interrupts
-    fn enable_interrupts(&mut self, _mem: &mut MemMap) {
+    fn enable_interrupts(&mut self, _mem: &mut Memory) {
         self.ime = 1;
     }
 
     /// Disables CPU interrupts
-    fn disable_interrupts(&mut self, _mem: &mut MemMap) {
+    fn disable_interrupts(&mut self, _mem: &mut Memory) {
         self.ime = 0;
     }
 
     /// Handle instructions corresponding to invalid opcodes
     fn invalid_inst(&mut self, _opcode: u8) -> u8 {
-        self.state = Crashed;
+        self.state = State::Crashed;
         0
     }
 
     /// Halt the cpu
     fn halt(&mut self) {
-        self.state = Halted;
+        self.state = State::Halted;
     }
 
     /// Stop the cpu
     fn stop(&mut self) {
-        self.state = Stopped;
+        self.state = State::Stopped;
     }
 
-    /// Increments pc, returning the old value of pc
+    /// Increments the program counter, returning the old value
     pub fn bump(&mut self) -> u16 {
-        let old = self.pc;
         self.pc += 1;
-        old
+        self.pc - 1
     }
 }
 
 // The 8-bit registers in the main register set can be joint to form 16-bit registers.
 macro_rules! join_regs { (($r1: ident, $r2: ident) as $name: ident) => (
+    #[allow(dead_code)]
     impl Cpu {
         pub fn $name(&mut self) -> JointReg {
             JointReg {
