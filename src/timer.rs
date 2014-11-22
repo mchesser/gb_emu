@@ -30,17 +30,34 @@ impl Timer {
             internal_tima: 0,
         }
     }
+
+    fn get_tima_speed(&self) -> u16 {
+         match self.tac & 0x3 {
+            0x0 => 256,
+            0x1 => 4,
+            0x2 => 16,
+            0x3 => 64,
+            _ => unreachable!(),
+        }
+    }
 }
 
 
 pub fn step(mem: &mut Memory, ticks: u8) {
-    mem.timer.internal_div += ticks as u16;
-    mem.timer.internal_tima += ticks as u16;
+    mem.timer.internal_div += ticks as u16 / 4;
+    mem.timer.internal_tima += ticks as u16 / 4;
 
-    if mem.timer.internal_div > 64 {
+    if mem.timer.internal_div >= 64 {
         tick_divider(mem);
+        mem.timer.internal_div -= 64;
     }
-    tick_counter(mem);
+    if mem.timer.tac & 0x4 != 0 {
+        let speed = mem.timer.get_tima_speed();
+        if mem.timer.internal_tima >= speed {
+            tick_counter(mem);
+            mem.timer.internal_tima -= speed;
+        }
+    }
 }
 
 

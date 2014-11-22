@@ -4,7 +4,6 @@
 
 use cpu::Cpu;
 use mmu::Memory;
-use cpu::disasm;
 
 // Flags for the GB processor:
 pub const ZERO_FLAG: u8 = 0b1000_0000;
@@ -157,7 +156,7 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
 
     // ADC A, s
     macro_rules! adc_a { ($s: expr) => (
-        add_a!($s + (cpu.f >> 7) & 0x1)
+        add_a!($s + ((cpu.f >> 4) & 0x1))
     ) }
     macro_rules! adc_an { () => (adc_a!(get_n!())) }
     macro_rules! adc_ar { ($r: ident) => (adc_a!(cpu.$r)) }
@@ -165,7 +164,7 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
 
     // ADC HL, ss
     macro_rules! adc_hlss { ($ss: ident) => (
-        add_hl!(cpu.$ss.get() + (cpu.f >> 7) & 0x1)
+        add_hl!(cpu.$ss.get() + ((cpu.f >> 4) & 0x1))
     ) }
 
     // CP A, s
@@ -192,7 +191,7 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
 
     // SBC A, s
     macro_rules! sbc_a { ($s: expr) => (
-        sub_a!($s + (cpu.f >> 7))
+        sub_a!($s + ((cpu.f >> 4) & 0x1))
     ) }
     macro_rules! sbc_an { () => (sbc_a!(get_n!())) }
     macro_rules! sbc_ar { ($r: ident) => (sbc_a!(cpu.$r)) }
@@ -232,7 +231,7 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
     macro_rules! inc_r { ($r: ident) => ({
         cpu.$r += 1;
         cpu.f &= CARRY_FLAG;
-        if cpu.$r & 0xf == 0 { cpu.f |= HALF_CARRY_FLAG; }
+        if (cpu.$r & 0xf) == 0 { cpu.f |= HALF_CARRY_FLAG; }
         if cpu.$r == 0 { cpu.f |= ZERO_FLAG; }
     }) }
     // INC (HL)
@@ -241,7 +240,7 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
         mem.sb(cpu.hl().get(), val);
 
         cpu.f &= CARRY_FLAG;
-        if val & 0xfu8 == 0 { cpu.f |= HALF_CARRY_FLAG; }
+        if (val & 0xf) == 0 { cpu.f |= HALF_CARRY_FLAG; }
         if val == 0 { cpu.f |= ZERO_FLAG; }
     }) }
     // INC ss
@@ -258,7 +257,7 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
         cpu.$r -= 1;
         cpu.f &= CARRY_FLAG;
         cpu.f |= ADD_SUB_FLAG;
-        if cpu.$r & 0xf == 0 { cpu.f |= HALF_CARRY_FLAG; }
+        if (cpu.$r & 0xf) == 0xf { cpu.f |= HALF_CARRY_FLAG; }
         if cpu.$r == 0 { cpu.f |= ZERO_FLAG; }
     }) }
     // DEC (HL)
@@ -268,7 +267,7 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
 
         cpu.f &= CARRY_FLAG;
         cpu.f |= ADD_SUB_FLAG;
-        if val & 0xFu8 == 0 { cpu.f |= HALF_CARRY_FLAG; }
+        if (val & 0xf) == 0xf { cpu.f |= HALF_CARRY_FLAG; }
         if val == 0 { cpu.f |= ZERO_FLAG; }
     }) }
     // DEC ss
@@ -293,13 +292,14 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
     }) }
     // CCF
     macro_rules! ccf { () => ({
-        // Not sure if we need this line
-        if cflag!() { cpu.f |= HALF_CARRY_FLAG } else { cpu.f &= !HALF_CARRY_FLAG }
-        cpu.f ^= CARRY_FLAG
+        cpu.f ^= CARRY_FLAG;
+        cpu.f &= ZERO_FLAG | CARRY_FLAG;
+        // Should the old carry flag be copied to HALF_CARRY_FLAG?
     }) }
     // SCF
     macro_rules! scf { () => ({
-        cpu.f |= CARRY_FLAG
+        cpu.f &= ZERO_FLAG;
+        cpu.f |= CARRY_FLAG;
     }) }
     // NOP
     macro_rules! nop { () => ( {} ) }
@@ -336,17 +336,19 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
     }) }
 
     // JP nn
-    macro_rules! jp_nn { () => (
-        cpu.pc = get_nn!();
-    ) }
+    macro_rules! jp_nn { () => ({
+        let addr = get_nn!();
+        cpu.jump(mem, addr);
+    }) }
     // JP c, nn
     macro_rules! jp_cnn { ($c: expr) => (
         if $c { jp_nn!(); 4 } else { cpu.pc += 2; 3 }
     ) }
     // JP hl
-    macro_rules! jp_hl { () => (
-        cpu.pc = cpu.hl().get()
-    ) }
+    macro_rules! jp_hl { () => ({
+        let addr = cpu.hl().get();
+        cpu.jump(mem, addr);
+    }) }
     // JR e
     macro_rules! jr_e { () => ({
         // Get offset as a 2s-complement integer
@@ -358,15 +360,15 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
         if $c { jr_e!(); 3 } else { cpu.pc += 1; 2 }
     ) }
     // JP (HL)
-    macro_rules! jp_HL { () => (
-        cpu.pc = mem.lw(cpu.hl().get());
-    ) }
+    macro_rules! jp_HL { () => ({
+        let addr = mem.lw(cpu.hl().get());
+        cpu.jump(mem, addr);
+    }) }
 
     // CALL nn
     macro_rules! call_nn { () => ({
-        cpu.sp -= 2;
-        mem.sw(cpu.sp, cpu.pc);
-        cpu.pc = get_nn!();
+        let addr = get_nn!();
+        cpu.call(mem, addr);
     }) }
     // CALL c, nn
     macro_rules! call_cnn { ($cc: expr) => (
@@ -374,8 +376,7 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
     ) }
     // RET
     macro_rules! ret { () => ({
-        cpu.pc = mem.lw(cpu.sp);
-        cpu.sp += 2;
+        cpu.ret(mem);
     }) }
     // RET c
     macro_rules! ret_c { ($c: expr) => (
@@ -388,15 +389,29 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
     }) }
     // RST p
     macro_rules! rst_p { ($p: expr) => ({
-        cpu.sp -= 2;
-        mem.sw(cpu.sp, cpu.pc);
-        cpu.pc = $p;
+        let addr = $p;
+        cpu.call(mem, addr);
     }) }
 
     //
     // Added instructions for GB
     //
 
+    macro_rules! inc_hl { () => ({
+        let v = cpu.hl().get();
+        cpu.hl().set(v + 1);
+    }) }
+
+    macro_rules! dec_hl { () => ({
+        let v = cpu.hl().get();
+        cpu.hl().set(v + 1);
+    }) }
+
+    // LD sp, nn
+    macro_rules! ld_spnn { () => ({
+        let val = get_nn!();
+        cpu.sp = val;
+    }) }
     // ADD SP, nn
     macro_rules! add_spnn { () => ({
         let offset = get_nn!() as i16;
@@ -404,24 +419,25 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
     }) }
     // LDI A, (HL)
     macro_rules! ldi_aHL { () => ({
-        cpu.a = cpu.hl().get() as u8;
-        inc_HL!();
+        cpu.a = mem.lb(cpu.hl().get());
+        inc_hl!();
     }) }
     // LDI (HL), A
     macro_rules! ldi_HLa { () => ({
-        cpu.hl().set(cpu.a as u16);
-        inc_HL!();
+        let a = cpu.a;
+        mem.sb(cpu.hl().get(), a);
+        inc_hl!();
     }) }
     // LDD A, (HL)
     macro_rules! ldd_aHL { () => ({
-        cpu.a = cpu.hl().get() as u8;
-        dec_HL!();
+        cpu.a = mem.lb(cpu.hl().get());
+        dec_hl!();
     }) }
     // LDD (HL), A
     macro_rules! ldd_HLa { () => ({
-        let a = cpu.a as u16;
-        cpu.hl().set(a);
-        dec_HL!();
+        let a = cpu.a;
+        mem.sb(cpu.hl().get(), a);
+        dec_hl!();
     }) }
     // LD HL,SP+n
     macro_rules! ld_hlspn { () => ({
@@ -433,7 +449,7 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
     macro_rules! stop { () => ( cpu.stop(); ) }
 
     // Fetch the next instruction from memory
-    println!("0x{:04X}:\t{}", cpu.pc, disasm::disasm(cpu.pc, mem));
+    // println!("0x{:04X}:\t{}", cpu.pc, disasm::disasm(cpu.pc, mem));
     let op = mem.lb(cpu.bump());
 
     // Decode and execute the instruction, returning the number of cycles required to run it.
@@ -448,7 +464,7 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
         0x04 => { inc_r!(b);            1 },
         0x05 => { dec_r!(b);            1 },
         0x06 => { ld_rn!(b);            2 },
-        0x07 => { rlca!();              2 },
+        0x07 => { rlca!();              1 },
         0x08 => { ld_NNsp!();           5 },
         0x09 => { add_hlss!(bc);        2 },
         0x0A => { ld_rDD!(a, bc);       2 },
@@ -456,7 +472,7 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
         0x0C => { inc_r!(c);            1 },
         0x0D => { dec_r!(c);            1 },
         0x0E => { ld_rn!(c);            2 },
-        0x0F => { rrca!();              2 },
+        0x0F => { rrca!();              1 },
 
         0x10 => { stop!();              1 },
         0x11 => { ld_ddnn!(de);         3 },
@@ -465,7 +481,7 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
         0x14 => { inc_r!(d);            1 },
         0x15 => { dec_r!(d);            1 },
         0x16 => { ld_rn!(d);            2 },
-        0x17 => { rla!();               2 },
+        0x17 => { rla!();               1 },
         0x18 => { jr_e!();              3 },
         0x19 => { add_hlss!(de);        2 },
         0x1A => { ld_rDD!(a, de);       2 },
@@ -473,11 +489,11 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
         0x1C => { inc_r!(e);            1 },
         0x1D => { dec_r!(e);            1 },
         0x1E => { ld_rn!(e);            2 },
-        0x1F => { rra!();               2 },
+        0x1F => { rra!();               1 },
 
         0x20 => { jr_ce!(!zflag!())       }, // 3;2
         0x21 => { ld_ddnn!(hl);         3 },
-        0x22 => { ld_DDr!(hl, a);       2 },
+        0x22 => { ldi_HLa!();           2 },
         0x23 => { inc_ss!(hl);          2 },
         0x24 => { inc_r!(h);            1 },
         0x25 => { dec_r!(h);            1 },
@@ -493,7 +509,7 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
         0x2F => { cpl!();               1 },
 
         0x30 => { jr_ce!(!cflag!())       }, // 3;2
-        0x31 => { ld_NNsp!();           3 },
+        0x31 => { ld_spnn!();           3 },
         0x32 => { ldd_HLa!();           2 },
         0x33 => { inc_sp!();            2 },
         0x34 => { inc_HL!();            3 },
@@ -1460,5 +1476,3 @@ fn daa(cpu: &mut Cpu) {
     cpu.a = lookup as u8;
     cpu.f = (lookup >> 8) as u8;
 }
-
-

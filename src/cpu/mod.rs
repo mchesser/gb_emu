@@ -2,9 +2,12 @@ use std::num::Int;
 
 use cpu::exec::fetch_exec;
 use mmu::Memory;
+use symbols::{SymbolTable, build_symbol_table};
 
 pub mod exec;
 pub mod disasm;
+
+const DEBUG: bool = false;
 
 const INTERRUPT_TABLE: &'static [u16] = &[
     0x0040,   // V-Blank
@@ -30,7 +33,6 @@ pub enum State {
     Running,
     Stopped,
     Halted,
-    Crashed,
 }
 
 /// The main processor for GB/C. The processor is similar to the Z80 processor, with a few
@@ -45,6 +47,8 @@ pub enum State {
 ///
 /// In addition, the main register set can be combined into 16-bit registers: af, bc, de, hl
 pub struct Cpu {
+    pub crashed: bool,
+
     pub a: u8,
     pub b: u8,
     pub c: u8,
@@ -61,11 +65,19 @@ pub struct Cpu {
 
     pub state: State,
     pub clock: u8,
+
+    symbols: SymbolTable,
+    stack_depth: i32,
+
+    prev: u16,
+    loop_count: u32,
 }
 
 impl Cpu {
     pub fn new() -> Cpu {
         Cpu {
+            crashed: true,
+
             a: 0, b: 0, c: 0, d: 0, e: 0, f: 0, h: 0, l: 0,
 
             ime: 0,
@@ -73,8 +85,14 @@ impl Cpu {
             sp: 0,
             pc: 0,
 
-            state: State::Crashed,
+            state: State::Running,
             clock: 0,
+
+            symbols: build_symbol_table(include_str!("testGame2.sym")),
+            stack_depth: 0,
+
+            prev: 0,
+            loop_count: 0,
         }
     }
 
@@ -87,12 +105,12 @@ impl Cpu {
         self.sp = 0xFFFE;
         self.pc = 0x0100;
 
-        self.state = State::Running;
+        self.crashed = false;
     }
 
     /// Steps the CPU returning the number of elapsed cycles
     pub fn step(&mut self, mem: &mut Memory) -> u8 {
-        if self.state == State::Crashed {
+        if self.crashed {
             return 0xFF;
         }
 
@@ -102,7 +120,11 @@ impl Cpu {
         }
 
         if self.state != State::Halted && self.state != State::Stopped {
+            // println!("{:04X}:\t\t{}", self.pc, disasm::disasm(self.pc, mem));
             elapsed_cycles += fetch_exec(self, mem);
+        }
+        else {
+            elapsed_cycles += 1;
         }
 
         // TODO: add support for CGB double speed mode
@@ -120,15 +142,15 @@ impl Cpu {
             return 0;
         }
 
+        // Disable interrupts
+        self.disable_interrupts(mem);
+
         // Get the highest priority interrupt
         let i = interrupts.trailing_zeros();
+        mem.if_reg &= !(1 << i);
 
-        // Push the return location onto the stack
-        self.sp -= 2;
-        mem.sw(self.sp, self.pc);
-
-        // Jump to the correct interrupt handler
-        self.pc = INTERRUPT_TABLE[i];
+        // Call the correct correct interrupt handler
+        self.call(mem, INTERRUPT_TABLE[i]);
         self.state = State::Running;
 
         1
@@ -144,19 +166,76 @@ impl Cpu {
         self.ime = 0;
     }
 
+    /// Jumps to a location
+    fn jump(&mut self, mem: &mut Memory, addr: u16) {
+        self.pc = addr;
+
+        if DEBUG {
+            if self.pc == self.prev {
+                self.loop_count += 1;
+                return;
+            }
+            else {
+                if self.loop_count != 0 {
+                    for _ in range(0, self.stack_depth) { print!("    "); }
+                    println!("x {}", self.loop_count);
+                    self.loop_count = 0;
+                }
+                self.prev = self.pc;
+            }
+
+            for _ in range(0, self.stack_depth) { print!("    "); }
+            let bank_num = if self.pc < 0x4000 { 0 } else { mem.rom_bank as u8 };
+            match self.symbols.get(&(bank_num, self.pc)) {
+                Some(name) => println!("->{}", name),
+                None => println!("->{:02X}:{:04X}", bank_num, self.pc),
+            }
+        }
+    }
+
+    fn call(&mut self, mem: &mut Memory, addr: u16) {
+        self.sp -= 2;
+        mem.sw(self.sp, self.pc);
+        self.pc = addr;
+
+        if DEBUG {
+            for _ in range(0, self.stack_depth) { print!("    "); }
+            let bank_num = if self.pc < 0x4000 { 0 } else { mem.rom_bank as u8 };
+            match self.symbols.get(&(bank_num, self.pc)) {
+                Some(name) => println!("CALL: {}", name),
+                None => println!("CALL: {:02X}:{:04X}", bank_num, self.pc),
+            }
+        }
+        if self.stack_depth < 0 { self.stack_depth = 0; }
+        self.stack_depth += 1;
+    }
+
+    fn ret(&mut self, mem: &mut Memory) {
+        self.pc = mem.lw(self.sp);
+        self.sp += 2;
+
+        self.stack_depth -= 1;
+        if DEBUG {
+            for _ in range(0, self.stack_depth) { print!("    "); }
+            println!("RETURN");
+        }
+    }
+
     /// Handle instructions corresponding to invalid opcodes
     fn invalid_inst(&mut self, _opcode: u8) -> u8 {
-        self.state = State::Crashed;
+        self.crashed = true;
         0
     }
 
     /// Halt the cpu
     fn halt(&mut self) {
+        println!("Halt: ime: {:0X}", self.ime);
         self.state = State::Halted;
     }
 
     /// Stop the cpu
     fn stop(&mut self) {
+        println!("Stop: ime: {:0X}", self.ime);
         self.state = State::Stopped;
     }
 

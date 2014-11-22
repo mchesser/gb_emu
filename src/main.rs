@@ -11,6 +11,7 @@ mod graphics;
 mod timer;
 mod client;
 mod client_timer;
+mod symbols;
 // mod sound;
 
 fn main() {
@@ -19,7 +20,7 @@ fn main() {
     let mut emulator = box Emulator::new();
 
     // Load a cart
-    let cart = File::open(&Path::new("Pokemon Red.gb")).read_to_end().ok().unwrap();
+    let cart = File::open(&Path::new("TESTGAME-2.GB")).read_to_end().ok().unwrap();
     emulator.load_cart(cart.as_slice());
     emulator.start();
 

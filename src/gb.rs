@@ -5,6 +5,7 @@ use cpu::Cpu;
 use graphics;
 use timer;
 
+#[allow(dead_code)] // This code is not dead
 pub enum DeviceMode {
     GameBoy,
     SuperGameBoy,
@@ -27,7 +28,7 @@ impl Emulator {
     }
 
     pub fn load_cart(&mut self, data: &[u8]) {
-        for (i, chunk) in data.chunks(0x2000).enumerate() {
+        for (i, chunk) in data.chunks(0x4000).enumerate() {
             copy_memory(self.mem.rom[i], chunk);
         }
     }
@@ -39,6 +40,10 @@ impl Emulator {
 
     /// Run the emulator for one frame
     pub fn frame(&mut self) {
+        if self.mem.crashed | self.cpu.crashed {
+            return;
+        }
+
         while self.cycles <= graphics::timings::FULL_FRAME as i32 {
             let instruction_time = self.cpu.step(&mut self.mem);
             timer::step(&mut self.mem, instruction_time);

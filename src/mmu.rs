@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use gb::DeviceMode;
+use graphics;
 use graphics::Gpu;
 use timer::Timer;
 
@@ -25,6 +26,11 @@ enum BankingMode {
 
 /// The GB/C memory mapper
 pub struct Memory {
+    pub crashed: bool,
+
+    pub sb: u8,
+    pub sc: u8,
+
     /// Interrupt enabled register (mapped to: 0xFFFF)
     pub ie_reg: u8,
     /// Interrupt flags register (mapped to: 0xFF0F)
@@ -63,10 +69,15 @@ pub struct Memory {
 impl Memory {
     pub fn new() -> Memory {
         Memory {
+            crashed: false,
+
+            sb: 0,
+            sc: 0,
+
             ie_reg: 0,
             if_reg: 0,
 
-            mbc: NoMbc,
+            mbc: Mbc3,
             banking_mode: BankingMode::Rom,
 
             rom: [[0, ..0x4000], ..128],
@@ -132,27 +143,56 @@ impl Memory {
 
             DeviceMode::GameBoy => {},
         }
+
+        // Set get the type of memory bank controller from the cart
+        let mbc_type = self.rom[0][0x0147];
+        // 00h  ROM ONLY                 13h  MBC3+RAM+BATTERY
+        // 01h  MBC1                     15h  MBC4
+        // 02h  MBC1+RAM                 16h  MBC4+RAM
+        // 03h  MBC1+RAM+BATTERY         17h  MBC4+RAM+BATTERY
+        // 05h  MBC2                     19h  MBC5
+        // 06h  MBC2+BATTERY             1Ah  MBC5+RAM
+        // 08h  ROM+RAM                  1Bh  MBC5+RAM+BATTERY
+        // 09h  ROM+RAM+BATTERY          1Ch  MBC5+RUMBLE
+        // 0Bh  MMM01                    1Dh  MBC5+RUMBLE+RAM
+        // 0Ch  MMM01+RAM                1Eh  MBC5+RUMBLE+RAM+BATTERY
+        // 0Dh  MMM01+RAM+BATTERY        FCh  POCKET CAMERA
+        // 0Fh  MBC3+TIMER+BATTERY       FDh  BANDAI TAMA5
+        // 10h  MBC3+TIMER+RAM+BATTERY   FEh  HuC3
+        // 11h  MBC3                     FFh  HuC1+RAM+BATTERY
+        // 12h  MBC3+RAM
+        match mbc_type {
+            0x00 | 0x08 | 0x09 => { self.mbc = NoMbc; },
+            0x01 | 0x02 | 0x03 => { self.mbc = Mbc1; },
+            0x05 | 0x06 => { self.mbc = Mbc2; },
+            0x11 | 0x12 | 0x0F | 0x10 | 0x13 => { self.mbc = Mbc3; }
+
+            x => { panic!("Unsupported cartridge: {:X}", x); }
+        }
     }
 
     /// Handle invalid memory accesses
-    fn invalid_memory(&mut self, addr: u16) -> ! {
-        panic!("Invalid memory access to address: 0x{:4X}", addr);
+    fn invalid_memory(&mut self, addr: u16) {
+        self.crashed = true;
+        println!("Invalid memory access to address: 0x{:4X}", addr);
     }
 
     /// Load a byte from memory
     pub fn lb(&mut self, addr: u16) -> u8 {
+        if self.crashed { return 0; };
+
         // Map memory reads to their correct bytes. (See: http://problemkaputt.de/pandocs.htm)
         // FIXME(minor): should probably handle invalid memory accesses depending on the memory bank
         // controller more carefully.
         match addr {
-            0x0000 ... 0x3FFF => self.rom[0][(addr & 0x1FFF) as uint],
+            0x0000 ... 0x3FFF => self.rom[0][(addr & 0x3FFF) as uint],
             0x4000 ... 0x7FFF => self.rom[self.rom_bank][(addr & 0x3FFF) as uint],
             0x8000 ... 0x9FFF => self.gpu.vram()[(addr & 0x1FFF) as uint],
             0xA000 ... 0xBFFF => self.external_ram[self.ram_bank][(addr & 0x1FFF) as uint],
             0xC000 ... 0xDFFF => self.working_ram[(addr & 0x0FFF) as uint],
             0xE000 ... 0xFDFF => self.working_ram[(addr & 0x0FFF) as uint],
             0xFE00 ... 0xFE9F => self.gpu.oam[(addr & 0x01FF) as uint],
-            0xFEA0 ... 0xFEFF => self.invalid_memory(addr),
+            0xFEA0 ... 0xFEFF => { self.invalid_memory(addr); 0},
             0xFF00 ... 0xFF7F => self.read_io(addr),
             0xFF80 ... 0xFFFE => self.fast_ram[(addr & 0x7F) as uint],
             0xFFFF            => self.ie_reg,
@@ -165,8 +205,8 @@ impl Memory {
     fn read_io(&mut self, addr: u16) -> u8 {
         match addr {
             0xFF00 => 0, // TODO: map to joypad
-            // 0xFF01 => 0, // TODO: map to serial transfer data
-            // 0xFF02 => 0, // TODO: map to serial transfer control
+            0xFF01 => self.sb, // TODO: map to serial transfer data
+            0xFF02 => self.sc, // TODO: map to serial transfer control
 
             0xFF04 => self.timer.div,
             0xFF05 => self.timer.tima,
@@ -176,7 +216,7 @@ impl Memory {
             0xFF0F => self.if_reg,
 
             0xFF40 => self.gpu.lcdc,
-            0xFF41 => self.gpu.stat,
+            0xFF41 => self.gpu.get_stat(),
             0xFF42 => self.gpu.scy,
             0xFF43 => self.gpu.scx,
             0xFF44 => self.gpu.ly,
@@ -186,9 +226,7 @@ impl Memory {
             0xFF49 => self.gpu.obp1,
             0xFF4A => self.gpu.wy,
             0xFF4B => self.gpu.wx,
-
             // 0xFF4D => 0, // TODO: Prepare switch speed
-
             0xFF4F => self.gpu.vram_bank,
 
             // 0xFF56 => 0, // TODO: Infrared communications port
@@ -209,7 +247,7 @@ impl Memory {
             0xFF76 => 0, // Undocumented - Always 0
             0xFF77 => 0, // Undocumented - Always 0
 
-            _      => { println!("unimplemented: {:4x}", addr); 0 },
+            _      => 0, // { println!("unimplemented: {:4x}", addr); 0 },
         }
     }
 
@@ -220,6 +258,8 @@ impl Memory {
 
     /// Store a byte in memory
     pub fn sb(&mut self, addr: u16, value: u8) {
+        if self.crashed { return; }
+
         // Map memory writes to their correct bytes. (See: http://problemkaputt.de/pandocs.htm)
         // Writes may have different effects depending on the active memory bank controller
         match addr {
@@ -288,7 +328,7 @@ impl Memory {
                 },
             },
 
-            0x8000 ... 0x9FFF => self.gpu.vram()[(addr & 0x1FFF) as uint] = value,
+            0x8000 ... 0x9FFF => self.gpu.vram_mut()[(addr & 0x1FFF) as uint] = value,
             // FIXME(minor): We don't actually check if the ram has been enabled berfore writing
             // to it
             0xA000 ... 0xBFFF => self.external_ram[self.ram_bank][(addr & 0x1FFF) as uint] = value,
@@ -307,8 +347,11 @@ impl Memory {
     pub fn write_io(&mut self, addr: u16, value: u8) {
         match addr {
             0xFF00 => {}, // TODO: map to joypad
-            // 0xFF01 => 0, // TODO: map to serial transfer data
-            // 0xFF02 => 0, // TODO: map to serial transfer control
+            0xFF01 => self.sb = value,
+            0xFF02 => {
+                self.sc = value;
+                // print!("{}", self.sb as char);
+            },
 
             0xFF04 => self.timer.div = value,
             0xFF05 => self.timer.tima = value,
@@ -318,11 +361,15 @@ impl Memory {
             0xFF0F => self.if_reg = value,
 
             0xFF40 => self.gpu.lcdc = value,
-            0xFF41 => self.gpu.stat = value,
+            0xFF41 => self.gpu.set_stat(value),
             0xFF42 => self.gpu.scy = value,
             0xFF43 => self.gpu.scx = value,
             0xFF44 => self.gpu.ly = value,
             0xFF45 => self.gpu.lyc = value,
+            0xFF46 => {
+                self.gpu.dma = value;
+                graphics::oam_dma_transfer(self);
+            },
             0xFF47 => self.gpu.bgp = value,
             0xFF48 => self.gpu.obp0 = value,
             0xFF49 => self.gpu.obp1 = value,
@@ -351,7 +398,7 @@ impl Memory {
             0xFF76 => {}, // Undocumented - Always 0
             0xFF77 => {}, // Undocumented - Always 0
 
-            _      => println!("unimplemented: {:4x}", addr),
+            _      => {},//println!("unimplemented: {:4x}", addr),
         }
     }
 
@@ -359,7 +406,7 @@ impl Memory {
     /// in [addr+1].
     pub fn sw(&mut self, addr: u16, value: u16) {
         self.sb(addr, value as u8);
-        self.sb(addr, (value >> 8) as u8);
+        self.sb(addr + 1, (value >> 8) as u8);
     }
 
     /// Write an entire array into memory starting at the address specified. If the amount of data
