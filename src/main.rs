@@ -12,7 +12,7 @@ mod timer;
 mod client;
 mod client_timer;
 mod symbols;
-// mod sound;
+mod sound;
 
 fn main() {
     // Create a new emulator (note the emulator object is quite large, so it is not allocated on

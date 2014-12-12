@@ -29,7 +29,7 @@ impl Emulator {
 
     pub fn load_cart(&mut self, data: &[u8]) {
         for (i, chunk) in data.chunks(0x4000).enumerate() {
-            copy_memory(self.mem.rom[i], chunk);
+            copy_memory(&mut self.mem.rom[i], chunk);
         }
     }
 
@@ -55,7 +55,7 @@ impl Emulator {
 
     /// Returns the internal display
     pub fn display(&mut self) -> &[u8] {
-        self.mem.gpu.front_buffer()
+        &self.mem.gpu.framebuffer
     }
 }
 

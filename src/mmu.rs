@@ -3,6 +3,7 @@
 use gb::DeviceMode;
 use graphics;
 use graphics::Gpu;
+use sound::SoundController;
 use timer::Timer;
 
 use mmu::MemoryBankController::{NoMbc, Mbc1, Mbc2, Mbc3};
@@ -62,6 +63,9 @@ pub struct Memory {
     /// GB graphics processor
     pub gpu: Gpu,
 
+    /// GB sound controller
+    pub sound: SoundController,
+
     /// GB Timer
     pub timer: Timer,
 }
@@ -91,6 +95,7 @@ impl Memory {
             fast_ram: [0, ..0x7F],
 
             gpu: Gpu::new(),
+            sound: SoundController::new(),
             timer: Timer::new(),
         }
     }
@@ -215,6 +220,29 @@ impl Memory {
 
             0xFF0F => self.if_reg,
 
+            0xFF10 => self.sound.nr10,
+            0xFF11 => self.sound.nr11,
+            0xFF12 => self.sound.nr12,
+            0xFF13 => self.sound.nr13,
+            0xFF14 => self.sound.nr14,
+            0xFF16 => self.sound.nr21,
+            0xFF17 => self.sound.nr22,
+            0xFF18 => self.sound.nr23,
+            0xFF19 => self.sound.nr24,
+            0xFF1A => self.sound.nr30,
+            0xFF1B => self.sound.nr31,
+            0xFF1C => self.sound.nr32,
+            0xFF1D => self.sound.nr33,
+            0xFF1E => self.sound.nr34,
+            0xFF20 => self.sound.nr41,
+            0xFF21 => self.sound.nr42,
+            0xFF22 => self.sound.nr43,
+            0xFF23 => self.sound.nr44,
+            0xFF24 => self.sound.nr50,
+            0xFF25 => self.sound.nr51,
+            0xFF26 => self.sound.nr52,
+            0xFF30 ... 0xFF3F => self.sound.wave_pattern_ram[(addr - 0xFF30) as uint],
+
             0xFF40 => self.gpu.lcdc,
             0xFF41 => self.gpu.get_stat(),
             0xFF42 => self.gpu.scy,
@@ -247,7 +275,7 @@ impl Memory {
             0xFF76 => 0, // Undocumented - Always 0
             0xFF77 => 0, // Undocumented - Always 0
 
-            _      => 0, // { println!("unimplemented: {:4x}", addr); 0 },
+            _      => { println!("unimplemented: {:4x}", addr); 0 },
         }
     }
 
@@ -357,8 +385,30 @@ impl Memory {
             0xFF05 => self.timer.tima = value,
             0xFF06 => self.timer.tma = value,
             0xFF07 => self.timer.tac = value,
-
             0xFF0F => self.if_reg = value,
+
+            0xFF10 => self.sound.nr10 = value,
+            0xFF11 => self.sound.nr11 = value,
+            0xFF12 => self.sound.nr12 = value,
+            0xFF13 => self.sound.nr13 = value,
+            0xFF14 => self.sound.nr14 = value,
+            0xFF16 => self.sound.nr21 = value,
+            0xFF17 => self.sound.nr22 = value,
+            0xFF18 => self.sound.nr23 = value,
+            0xFF19 => self.sound.nr24 = value,
+            0xFF1A => self.sound.nr30 = value,
+            0xFF1B => self.sound.nr31 = value,
+            0xFF1C => self.sound.nr32 = value,
+            0xFF1D => self.sound.nr33 = value,
+            0xFF1E => self.sound.nr34 = value,
+            0xFF20 => self.sound.nr41 = value,
+            0xFF21 => self.sound.nr42 = value,
+            0xFF22 => self.sound.nr43 = value,
+            0xFF23 => self.sound.nr44 = value,
+            0xFF24 => self.sound.nr50 = value,
+            0xFF25 => self.sound.nr51 = value,
+            0xFF26 => self.sound.nr52 = value,
+            0xFF30 ... 0xFF3F => self.sound.wave_pattern_ram[(addr - 0xFF30) as uint] = value,
 
             0xFF40 => self.gpu.lcdc = value,
             0xFF41 => self.gpu.set_stat(value),
@@ -398,7 +448,7 @@ impl Memory {
             0xFF76 => {}, // Undocumented - Always 0
             0xFF77 => {}, // Undocumented - Always 0
 
-            _      => {},//println!("unimplemented: {:4x}", addr),
+            _      => println!("unimplemented: {:4x}", addr),
         }
     }
 

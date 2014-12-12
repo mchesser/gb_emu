@@ -2,9 +2,10 @@
 use std::slice::bytes::copy_memory;
 
 use sdl2;
-use sdl2::event;
-use sdl2::video::{Window, PosCentered, OPENGL};
+use sdl2::event::Event;
 use sdl2::event::poll_event;
+use sdl2::video::{Window, OPENGL};
+use sdl2::video::WindowPos::PosCentered;
 use sdl2::surface::Surface;
 
 use gb;
@@ -39,18 +40,18 @@ pub fn run(mut emulator: Box<gb::Emulator>) {
 
     'main: loop {
         'event: loop {
-            match event::poll_event() {
-                event::Quit(_) => break 'main,
+            match poll_event() {
+                Event::Quit(_) => break 'main,
 
-                event::KeyDown(_, _, code, _, _) => {
+                Event::KeyDown(_, _, code, _, _, _) => {
                     println!("You pressed {}", code);
                 }
 
-                event::KeyUp(_, _, code, _, _) => {
+                Event::KeyUp(_, _, code, _, _, _) => {
                     println!("You released {}", code);
                 }
 
-                event::None => break,
+                Event::None => break,
                 _ => continue,
             }
         }

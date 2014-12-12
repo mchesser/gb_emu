@@ -59,13 +59,9 @@ pub struct Gpu {
 
     /// The GB display. Colours are defined in the order: (r, g, b, a). And the pixels are ordered
     /// by row ([ row1, row2, row3, ...]).
-    framebuffer: [[u8, ..HEIGHT * WIDTH * 4], ..2],
-    /// The buffer that is being drawn too.
-    back_buffer_id: uint,
+    pub framebuffer: [u8, ..HEIGHT * WIDTH * 4],
+    /// A flag that indicates that the framebuffer is ready to be read
     pub ready_flag: bool,
-
-    /// The current line being processed by the GBP (0 ... 142 = Hblank, 143 ... 153 = Vblank)
-    /// pub line: u8,
 
     /// The GPU vram (mapped to: 0x8000-0x9FFF)
     pub vram: [[u8, ..VRAM_SIZE], ..2],
@@ -121,8 +117,7 @@ impl Gpu {
     pub fn new() -> Gpu {
         Gpu {
             mode_clock: 0,
-            framebuffer: [[0, ..HEIGHT * WIDTH * 4], ..2],
-            back_buffer_id: 0,
+            framebuffer: [0, ..HEIGHT * WIDTH * 4],
             ready_flag: false,
             vram: [[0, ..VRAM_SIZE], ..2],
             vram_bank: 0,
@@ -155,12 +150,12 @@ impl Gpu {
 
     /// Returns the currently banked vram
     pub fn vram(&self) -> &[u8] {
-        self.vram[self.vram_bank as uint]
+        &self.vram[self.vram_bank as uint]
     }
 
     /// Returns the currently banked vram
     pub fn vram_mut(&mut self) -> &mut [u8] {
-        self.vram[self.vram_bank as uint]
+        &mut self.vram[self.vram_bank as uint]
     }
 
     /// Returns the value of the lcd status register
@@ -182,22 +177,6 @@ impl Gpu {
         self.stat.hblank_interrupt = (val & 0b00001000) != 0;
 
         // lyc_flag and mode are readonly
-    }
-
-    /// Returns the back buffer
-    pub fn back_buffer(&mut self) -> &mut [u8] {
-        self.framebuffer[self.back_buffer_id]
-    }
-
-    /// Returns the front buffer
-    pub fn front_buffer(&mut self) -> &mut [u8] {
-        self.framebuffer[1 - self.back_buffer_id]
-    }
-
-    /// Flip the front and back buffers
-    fn flip_buffers(&mut self) {
-        self.back_buffer_id = 1 - self.back_buffer_id;
-        self.ready_flag = true;
     }
 
     /// Set the current GPU mode
@@ -225,17 +204,12 @@ impl Gpu {
         for _ in range(0, WIDTH) {
             let color_id = self.tile_lookup(tile_id, tile_x, tile_y);
             let color = palette_lookup(self.bgp, color_id);
-
-            // Write pixel to framebuffer
-            self.back_buffer()[draw_offset + 0] = color[0];
-            self.back_buffer()[draw_offset + 1] = color[1];
-            self.back_buffer()[draw_offset + 2] = color[2];
-            self.back_buffer()[draw_offset + 3] = color[3];
+            write_pixel(&mut self.framebuffer, draw_offset as uint, color);
             draw_offset += 4;
 
             tile_x += 1;
+            // Check if we reached the end of a tile
             if tile_x >= 8 {
-                // Reached the end of a tile so read the next one
                 tile_x = 0;
                 tile_offset += 1;
                 tile_id = self.vram()[(line_offset + tile_offset) as uint];
@@ -251,14 +225,16 @@ impl Gpu {
         // TODO(major): Only allow 10 sprites per scanline in CGB mode
         let mut num_sprites = 0_i32;
 
+        // FIXME(minor): Can we do this more efficiently
         for sprite in self.oam.chunks(4) {
+            // Read sprite attributes
             let dy = sprite[0] as int - 16;
             let dx = sprite[1] as int - 8;
             let tile_id = sprite[2];
             let flags = sprite[3];
 
+            // Check if the sprite appears on this scanline
             if dy > self.ly as int || dy + size <= self.ly as int|| dx <= -8 || dx >= WIDTH as int {
-                // Skip this sprite since it doesn't appear on this scanline
                 continue
             }
 
@@ -267,7 +243,8 @@ impl Gpu {
             let mut draw_offset = (self.ly as int * WIDTH as int + dx as int) * 4;
             let palette = if flags & 0x10 == 0 { self.obp0 } else { self.obp1 };
 
-            // Get the y coordinate of the tile. If bit 6 is set, the sprite is flipped.
+            // Get the y coordinate of the sprite. If bit 6 is set, the sprite is flipped so we take
+            // the y offset from the bottom of the sprite.
             let y = if flags & 0x40 == 0 { self.ly as int - dy } else { 7 - (self.ly as int - dy) };
 
             for x in range(0, 8) {
@@ -279,11 +256,7 @@ impl Gpu {
                     // Pixels in a sprite with a color id of 0 are transparent
                     if color_id != 0 {
                         let color = palette_lookup(palette, color_id);
-
-                        self.framebuffer[self.back_buffer_id][draw_offset as uint + 0] = color[0];
-                        self.framebuffer[self.back_buffer_id][draw_offset as uint + 1] = color[1];
-                        self.framebuffer[self.back_buffer_id][draw_offset as uint + 2] = color[2];
-                        self.framebuffer[self.back_buffer_id][draw_offset as uint + 3] = color[3];
+                        write_pixel(&mut self.framebuffer, draw_offset as uint, color);
                     }
                 }
                 draw_offset += 4;
@@ -338,7 +311,7 @@ pub fn step(mem: &mut Memory, ticks: u8) {
                 mem.gpu.ly += 1;
                 if mem.gpu.ly > 142 {
                     mem.gpu.set_mode(Mode::VBlank);
-                    mem.gpu.flip_buffers();
+                    mem.gpu.ready_flag = true;
                     mem.if_reg |= Interrupt::VBlank as u8;
                 }
                 else {
@@ -365,6 +338,14 @@ pub fn step(mem: &mut Memory, ticks: u8) {
             }
         },
     }
+}
+
+/// Write a pixel to an offset in the frame buffer
+fn write_pixel(framebuffer: &mut [u8], offset: uint, color: Color) {
+    framebuffer[offset + 0] = color[0];
+    framebuffer[offset + 1] = color[1];
+    framebuffer[offset + 2] = color[2];
+    framebuffer[offset + 3] = color[3];
 }
 
 /// Perform a DMA transfer from memory to the sprite access table

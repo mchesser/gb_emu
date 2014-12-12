@@ -17,7 +17,7 @@ const INTERRUPT_TABLE: &'static [u16] = &[
     0x0060,   // Joypad
 ];
 
-// FIXME(minor): Remove this when the remaining interrupts have been implemented
+// FIXME(minor): Remove this allow when the remaining interrupts have been implemented
 #[allow(dead_code)]
 #[repr(u8)]
 pub enum Interrupt {
@@ -111,6 +111,7 @@ impl Cpu {
     /// Steps the CPU returning the number of elapsed cycles
     pub fn step(&mut self, mem: &mut Memory) -> u8 {
         if self.crashed {
+            // If the CPU has crashed, then we can't do anything
             return 0xFF;
         }
 
@@ -229,13 +230,11 @@ impl Cpu {
 
     /// Halt the cpu
     fn halt(&mut self) {
-        println!("Halt: ime: {:0X}", self.ime);
         self.state = State::Halted;
     }
 
     /// Stop the cpu
     fn stop(&mut self) {
-        println!("Stop: ime: {:0X}", self.ime);
         self.state = State::Stopped;
     }
 
