@@ -1,5 +1,6 @@
 #![feature(macro_rules)]
 extern crate sdl2;
+extern crate time;
 
 use std::io::File;
 use gb::Emulator;

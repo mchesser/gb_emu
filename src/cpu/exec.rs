@@ -404,7 +404,7 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
 
     macro_rules! dec_hl { () => ({
         let v = cpu.hl().get();
-        cpu.hl().set(v + 1);
+        cpu.hl().set(v - 1);
     }) }
 
     // LD sp, nn
@@ -666,7 +666,7 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
         0xC2 => { jp_cnn!(!zflag!())      }, // 4;3
         0xC3 => { jp_nn!();             4 },
         0xC4 => { call_cnn!(!zflag!())    }, // 6;3
-        0xC5 => { push_qq!(bc);         3 },
+        0xC5 => { push_qq!(bc);         4 },
         0xC6 => { add_an!();            2 },
         0xC7 => { rst_p!(0x00);         4 },
         0xC8 => { ret_c!(zflag!())        }, // 5;2
@@ -683,7 +683,7 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
         0xD2 => { jp_cnn!(!cflag!())      }, // 4;3
         0xD3 => cpu.invalid_inst(op),
         0xD4 => { call_cnn!(!cflag!())    }, // 6;3
-        0xD5 => { push_qq!(de);         3 },
+        0xD5 => { push_qq!(de);         4 },
         0xD6 => { sub_an!();            2 },
         0xD7 => { rst_p!(0x10);         4 },
         0xD8 => { ret_c!(cflag!())        }, // 5;2
@@ -700,7 +700,7 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
         0xE2 => { ld_IOca!();           2 },
         0xE3 => cpu.invalid_inst(op),
         0xE4 => cpu.invalid_inst(op),
-        0xE5 => { push_qq!(hl);         3 },
+        0xE5 => { push_qq!(hl);         4 },
         0xE6 => { and_an!();            2 },
         0xE7 => { rst_p!(0x20);         4 },
         0xE8 => { add_spn!();           4 },
@@ -718,7 +718,7 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
         0xF2 => { ld_aIOc!();           2 },
         0xF3 => { di!();                1 },
         0xF4 => cpu.invalid_inst(op),
-        0xF5 => { push_qq!(af);         3 },
+        0xF5 => { push_qq!(af);         4 },
         0xF6 => { or_an!();             2 },
         0xF7 => { rst_p!(0x30);         4 },
         0xF8 => { ld_hlspn!();          3 },
@@ -1476,3 +1476,5 @@ fn daa(cpu: &mut Cpu) {
     cpu.a = lookup as u8;
     cpu.f = (lookup >> 8) as u8;
 }
+
+include!("cpu_tests.rs")

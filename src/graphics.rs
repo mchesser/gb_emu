@@ -8,12 +8,12 @@ const VRAM_SIZE: uint = 0x2000;
 const OAM_SIZE: uint = 0xA0;
 
 pub mod timings {
-    pub const OAM_READ: u16 = 80;
-    pub const VRAM_READ: u16 = 172;
-    pub const HBLANK: u16 = 204;
-    pub const VBLANK: u16 = 456;
+    pub const OAM_READ: u32 = 80;
+    pub const VRAM_READ: u32 = 172;
+    pub const HBLANK: u32 = 204;
+    pub const VBLANK: u32 = 456;
 
-    pub const FULL_FRAME: u16 = (OAM_READ + VRAM_READ + HBLANK) * 144 + VBLANK * 10;
+    pub const FULL_FRAME: u32 = (OAM_READ + VRAM_READ + HBLANK) * 144 + VBLANK * 10;
 }
 
 type Color = [u8, ..4];
@@ -148,6 +148,31 @@ impl Gpu {
         }
     }
 
+    fn lcd_on(&self) -> bool {
+        self.lcdc & 0b1000_0000 != 0
+    }
+
+    fn tile_set_0(&self) -> bool {
+        self.lcdc & 0b0001_0000 != 0
+    }
+
+    fn bgmap_base_offset(&self) -> u16 {
+        if self.lcdc & 0b0000_1000 == 0 { 0x1800 } else { 0x1C00 }
+    }
+
+    fn get_sprite_height(&self) -> int {
+        if self.lcdc & 0b0000_0100 == 0 { 8 } else { 16 }
+    }
+
+    fn obj_display_on(&self) -> bool {
+        self.lcdc & 0b0000_0010 != 0
+    }
+
+    fn bg_display_on(&self) -> bool {
+        self.lcdc & 0b0000_0001 != 0
+    }
+
+
     /// Returns the currently banked vram
     pub fn vram(&self) -> &[u8] {
         &self.vram[self.vram_bank as uint]
@@ -179,30 +204,36 @@ impl Gpu {
         // lyc_flag and mode are readonly
     }
 
-    /// Set the current GPU mode
     pub fn set_mode(&mut self, mode: Mode) {
         self.mode_clock = 0;
         self.stat.mode = mode;
     }
 
-    /// Render a scanline
     pub fn render_scanline(&mut self) {
-        self.render_bg_scanline();
-        self.render_sprite_scanline();
+        if self.lcd_on() {
+            if self.bg_display_on() {
+                self.render_bg_scanline();
+            }
+            if self.obj_display_on() {
+                self.render_sprite_scanline();
+            }
+        }
     }
 
-    /// Render background pixels
     pub fn render_bg_scanline(&mut self) {
+        let base_offset = self.bgmap_base_offset() + ((self.ly + self.scy) / 8) as u16 * 32;
+        let mut tile_offset = (self.scx / 8) as u16;
+
         let tile_y = (self.ly + self.scy) % 8;
         let mut tile_x = self.scx % 8;
-
-        let line_offset = self.tilemap_offset() + ((self.ly + self.scy) / 8) as u16 * 32;
-        let mut tile_offset = (self.scx / 8) as u16;
-        let mut tile_id = self.vram()[(line_offset + tile_offset) as uint];
+        let mut tile_id = self.vram()[(base_offset + tile_offset) as uint] as uint;
+        if !self.tile_set_0() {
+            if tile_id < 128 { tile_id += 256 }
+        }
 
         let mut draw_offset = self.ly as uint * WIDTH * 4;
         for _ in range(0, WIDTH) {
-            let color_id = self.tile_lookup(tile_id, tile_x, tile_y);
+            let color_id = self.tile_lookup(tile_id, 7 - tile_x, tile_y);
             let color = palette_lookup(self.bgp, color_id);
             write_pixel(&mut self.framebuffer, draw_offset as uint, color);
             draw_offset += 4;
@@ -212,14 +243,20 @@ impl Gpu {
             if tile_x >= 8 {
                 tile_x = 0;
                 tile_offset += 1;
-                tile_id = self.vram()[(line_offset + tile_offset) as uint];
+                tile_id = self.vram()[(base_offset + tile_offset) as uint] as uint;
+                if !self.tile_set_0() {
+                    if tile_id < 128 { tile_id += 256 }
+                }
             }
         }
     }
 
     pub fn render_sprite_scanline(&mut self) {
-        // TODO(major): support 8x16 pixel sprites
-        let size = 8;
+        // CHECKME: This could be the wrong way around
+        // Determine the sprite height by looking at the lcdc register
+        let sprite_height = self.get_sprite_height();
+
+        let line_num = self.ly as int;
 
         // TODO(major): Set priorities in GB mode
         // TODO(major): Only allow 10 sprites per scanline in CGB mode
@@ -228,30 +265,40 @@ impl Gpu {
         // FIXME(minor): Can we do this more efficiently
         for sprite in self.oam.chunks(4) {
             // Read sprite attributes
-            let dy = sprite[0] as int - 16;
+            let mut dy = sprite[0] as int - 16;
             let dx = sprite[1] as int - 8;
-            let tile_id = sprite[2];
+            let mut tile_id = sprite[2];
             let flags = sprite[3];
 
             // Check if the sprite appears on this scanline
-            if dy > self.ly as int || dy + size <= self.ly as int|| dx <= -8 || dx >= WIDTH as int {
+            if dy > line_num || dy + sprite_height <= line_num || dx <= -8 || dx >= WIDTH as int {
                 continue
             }
-
             num_sprites += 1;
 
-            let mut draw_offset = (self.ly as int * WIDTH as int + dx as int) * 4;
+            if sprite_height == 16 {
+                tile_id &= 0xFE;
+                if self.ly as int - dy >= 8 {
+                    tile_id |= 1;
+                    dy += 8;
+                }
+            }
+
+            let mut draw_offset = (line_num * WIDTH as int + dx as int) * 4;
             let palette = if flags & 0x10 == 0 { self.obp0 } else { self.obp1 };
 
             // Get the y coordinate of the sprite. If bit 6 is set, the sprite is flipped so we take
             // the y offset from the bottom of the sprite.
-            let y = if flags & 0x40 == 0 { self.ly as int - dy } else { 7 - (self.ly as int - dy) };
+            let tile_y = if flags & 0x40 == 0 { line_num - dy } else { 7 - (line_num - dy) } as u8;
+            assert!(tile_y < 8);
 
             for x in range(0, 8) {
                 if dx + x >= 0 && (dx as int + x as int) < WIDTH as int {
-                    // Flip x if bit 5 is set
-                    let tile_x = if flags & 0x20 == 0 { 7 - x } else { x };
-                    let color_id = self.tile_lookup(tile_id, tile_x as u8, y as u8);
+                    // Flip x coordinate if bit 5 is set
+                    let tile_x = if flags & 0x20 == 0 { 7 - x } else { x } as u8;
+                    assert!(tile_x < 8);
+
+                    let color_id = self.tile_lookup(tile_id as uint, tile_x, tile_y);
 
                     // Pixels in a sprite with a color id of 0 are transparent
                     if color_id != 0 {
@@ -265,21 +312,16 @@ impl Gpu {
         }
     }
 
-    /// Get the offset of the currently enabled tilemap
-    fn tilemap_offset(&self) -> u16 {
-        // FIXME(major): support other tilemap
-        0x1800
-    }
-
     /// Look up the color value of a pixel in a tile
-    fn tile_lookup(&self, id: u8, x: u8, y: u8) -> uint {
+    fn tile_lookup(&self, id: uint, x: u8, y: u8) -> uint {
         let tile_height = 8;
-        let index = (id * tile_height * 2 + y * 2) as uint;
-        let low = self.vram()[index];
-        let high = self.vram()[index + 1];
+
+        let index = id as uint * tile_height * 2 + y as uint * 2;
 
         // A single pixel is stored over two bytes. The pixels lower bit is stored in the first byte
         // and the high bit is stored in the second byte
+        let low = self.vram()[index];
+        let high = self.vram()[index + 1];
         ((((high >> (x as uint)) & 1) << 1) | ((low >> (x as uint)) & 1)) as uint
     }
 }
@@ -291,13 +333,13 @@ pub fn step(mem: &mut Memory, ticks: u8) {
 
     match mem.gpu.stat.mode {
         Mode::OamRead => {
-            if mem.gpu.mode_clock >= timings::OAM_READ {
+            if mem.gpu.mode_clock >= timings::OAM_READ as u16 {
                 mem.gpu.set_mode(Mode::VramRead);
             }
         },
 
         Mode::VramRead => {
-            if mem.gpu.mode_clock >= timings::VRAM_READ {
+            if mem.gpu.mode_clock >= timings::VRAM_READ as u16 {
                 mem.gpu.set_mode(Mode::HBlank);
                 mem.gpu.render_scanline();
                 if mem.gpu.stat.hblank_interrupt {
@@ -307,7 +349,7 @@ pub fn step(mem: &mut Memory, ticks: u8) {
         },
 
         Mode::HBlank => {
-            if mem.gpu.mode_clock >= timings::HBLANK {
+            if mem.gpu.mode_clock >= timings::HBLANK as u16 {
                 mem.gpu.ly += 1;
                 if mem.gpu.ly > 142 {
                     mem.gpu.set_mode(Mode::VBlank);
@@ -324,7 +366,7 @@ pub fn step(mem: &mut Memory, ticks: u8) {
         },
 
         Mode::VBlank => {
-            if mem.gpu.mode_clock >= timings::VBLANK {
+            if mem.gpu.mode_clock >= timings::VBLANK as u16 {
                 mem.gpu.mode_clock = 0;
                 mem.gpu.ly += 1;
                 if mem.gpu.ly > 153 {
@@ -348,13 +390,19 @@ fn write_pixel(framebuffer: &mut [u8], offset: uint, color: Color) {
     framebuffer[offset + 3] = color[3];
 }
 
+fn write_pixel_xy(framebuffer: &mut [u8], x: uint, y: uint, color: Color) {
+    let offset = (y * WIDTH + x) * 4;
+    write_pixel(framebuffer, offset, color);
+}
+
 /// Perform a DMA transfer from memory to the sprite access table
 pub fn oam_dma_transfer(mem: &mut Memory) {
-    let start_addr = mem.gpu.dma as u16 << 4;
+    let start_addr = mem.gpu.dma as u16 << 8;
 
     for i in range(0, OAM_SIZE) {
         mem.gpu.oam[i] = mem.lb(start_addr + i as u16);
     }
+    mem.gpu.draw_oam();
 }
 
 pub fn palette_lookup(palette: u8, color_id: uint) -> Color {

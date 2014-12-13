@@ -10,7 +10,7 @@ use sdl2::surface::Surface;
 
 use gb;
 use graphics;
-// use client_timer::Timer;
+use client_timer::Timer;
 
 const SCALE: int = 1;
 const WIDTH: int = graphics::WIDTH as int * SCALE;
@@ -34,10 +34,7 @@ pub fn run(mut emulator: Box<gb::Emulator>) {
         Err(err) => panic!(format!("failed to get window surface: {}", err))
     };
 
-    // FIXME(major): use timers to run at the correct frame rate
-    // let mut cpu_timer = Timer::new();
-    // let mut timer = Timer::new();
-
+    let mut timer = Timer::new();
     'main: loop {
         'event: loop {
             match poll_event() {
@@ -56,7 +53,12 @@ pub fn run(mut emulator: Box<gb::Emulator>) {
             }
         }
 
-        emulator.frame();
+
+        if timer.elapsed_seconds() >= 1.0 / 60.0 {
+            timer.reset();
+            emulator.frame();
+        }
+
         if emulator.mem.gpu.ready_flag {
             emulator.mem.gpu.ready_flag = false;
             render_screen(&mut surface, emulator.display());
