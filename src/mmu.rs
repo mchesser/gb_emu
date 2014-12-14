@@ -4,6 +4,7 @@ use gb::DeviceMode;
 use graphics;
 use graphics::Gpu;
 use sound::SoundController;
+use joypad::Joypad;
 use timer::Timer;
 
 use mmu::MemoryBankController::{NoMbc, Mbc1, Mbc2, Mbc3};
@@ -66,6 +67,9 @@ pub struct Memory {
     /// GB sound controller
     pub sound: SoundController,
 
+    /// GB joypad
+    pub joypad: Joypad,
+
     /// GB Timer
     pub timer: Timer,
 }
@@ -96,6 +100,7 @@ impl Memory {
 
             gpu: Gpu::new(),
             sound: SoundController::new(),
+            joypad: Joypad::new(),
             timer: Timer::new(),
         }
     }
@@ -209,7 +214,7 @@ impl Memory {
     /// Read a byte from an IO device (maps: [0xFF00-0xFF7F])
     fn read_io(&mut self, addr: u16) -> u8 {
         match addr {
-            0xFF00 => 0, // TODO: map to joypad
+            0xFF00 => self.joypad.read(),
             0xFF01 => self.sb, // TODO: map to serial transfer data
             0xFF02 => self.sc, // TODO: map to serial transfer control
 
@@ -374,7 +379,7 @@ impl Memory {
 
     pub fn write_io(&mut self, addr: u16, value: u8) {
         match addr {
-            0xFF00 => {}, // TODO: map to joypad
+            0xFF00 => self.joypad.write(value),
             0xFF01 => self.sb = value,
             0xFF02 => {
                 self.sc = value;

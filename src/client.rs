@@ -4,12 +4,15 @@ use std::slice::bytes::copy_memory;
 use sdl2;
 use sdl2::event::Event;
 use sdl2::event::poll_event;
+use sdl2::keycode::KeyCode;
 use sdl2::video::{Window, OPENGL};
 use sdl2::video::WindowPos::PosCentered;
 use sdl2::surface::Surface;
 
 use gb;
 use graphics;
+use joypad;
+
 use client_timer::Timer;
 
 const SCALE: int = 1;
@@ -41,12 +44,12 @@ pub fn run(mut emulator: Box<gb::Emulator>) {
                 Event::Quit(_) => break 'main,
 
                 Event::KeyDown(_, _, code, _, _, _) => {
-                    println!("You pressed {}", code);
-                }
+                    handle_joypad_event(&mut emulator.mem.joypad, code, joypad::State::Pressed);
+                },
 
                 Event::KeyUp(_, _, code, _, _, _) => {
-                    println!("You released {}", code);
-                }
+                    handle_joypad_event(&mut emulator.mem.joypad, code, joypad::State::Released);
+                },
 
                 Event::None => break,
                 _ => continue,
@@ -64,6 +67,23 @@ pub fn run(mut emulator: Box<gb::Emulator>) {
             render_screen(&mut surface, emulator.display());
             window.update_surface();
         }
+    }
+}
+
+fn handle_joypad_event(joypad: &mut joypad::Joypad, keycode: KeyCode, state: joypad::State) {
+    // TODO: Add custom keybindings
+    match keycode {
+        KeyCode::Up => joypad.up = state,
+        KeyCode::Down => joypad.down = state,
+        KeyCode::Left => joypad.left = state,
+        KeyCode::Right => joypad.right = state,
+
+        KeyCode::Z => joypad.a = state,
+        KeyCode::X => joypad.b = state,
+        KeyCode::KpEnter => joypad.start = state,
+        KeyCode::RShift => joypad.select = state,
+
+        _ => {},
     }
 }
 
