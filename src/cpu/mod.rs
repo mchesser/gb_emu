@@ -68,6 +68,7 @@ pub struct Cpu {
 
     symbols: SymbolTable,
     stack_depth: i32,
+    stack_addr: Vec<u16>,
 
     prev: u16,
     loop_count: u32,
@@ -88,8 +89,9 @@ impl Cpu {
             state: State::Running,
             clock: 0,
 
-            symbols: build_symbol_table(include_str!("testGame2.sym")),
+            symbols: build_symbol_table(include_str!("testGame5.sym")),
             stack_depth: 0,
+            stack_addr: vec![],
 
             prev: 0,
             loop_count: 0,
@@ -200,6 +202,8 @@ impl Cpu {
         self.pc = addr;
 
         if DEBUG {
+            self.stack_addr.push(mem.lw(self.sp));
+
             for _ in range(0, self.stack_depth) { print!("    "); }
             let bank_num = if self.pc < 0x4000 { 0 } else { mem.rom_bank as u8 };
             match self.symbols.get(&(bank_num, self.pc)) {
@@ -215,10 +219,18 @@ impl Cpu {
         self.pc = mem.lw(self.sp);
         self.sp += 2;
 
-        self.stack_depth -= 1;
         if DEBUG {
-            for _ in range(0, self.stack_depth) { print!("    "); }
-            println!("RETURN");
+            if self.stack_addr.last() == Some(&self.pc) {
+                self.stack_addr.pop();
+                self.stack_depth -= 1;
+
+                for _ in range(0, self.stack_depth) { print!("    "); }
+                println!("RETURN");
+            }
+            else {
+                for _ in range(0, self.stack_depth) { print!("    "); }
+                println!("..RETURN");
+            }
         }
     }
 
