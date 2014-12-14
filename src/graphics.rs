@@ -152,13 +152,26 @@ impl Gpu {
         self.lcdc & 0b1000_0000 != 0
     }
 
-    fn tile_set_0(&self) -> bool {
-        self.lcdc & 0b0001_0000 != 0
+    fn winmap_base_offset(&self) -> u16 {
+        if self.lcdc & 0b0100_0000 == 0 { 0x1800 } else { 0x1C00 }
+    }
+
+    fn window_display_on(&self) -> bool {
+        self.lcdc & 0b0010_0000 != 0
+    }
+
+    /// Adjust a tile id based on the currently selected tile set
+    fn adjust_tile_id(&self, tile_id: uint) -> uint {
+        if self.lcdc & 0b0001_0000 == 0 {
+            if tile_id < 128 { return tile_id + 256 }
+        }
+        tile_id
     }
 
     fn bgmap_base_offset(&self) -> u16 {
         if self.lcdc & 0b0000_1000 == 0 { 0x1800 } else { 0x1C00 }
     }
+
 
     fn get_sprite_height(&self) -> int {
         if self.lcdc & 0b0000_0100 == 0 { 8 } else { 16 }
@@ -171,7 +184,6 @@ impl Gpu {
     fn bg_display_on(&self) -> bool {
         self.lcdc & 0b0000_0001 != 0
     }
-
 
     /// Returns the currently banked vram
     pub fn vram(&self) -> &[u8] {
@@ -214,55 +226,93 @@ impl Gpu {
             if self.bg_display_on() {
                 self.render_bg_scanline();
             }
+            if self.window_display_on() {
+                self.render_window_scanline();
+            }
             if self.obj_display_on() {
                 self.render_sprite_scanline();
             }
         }
     }
 
-    pub fn render_bg_scanline(&mut self) {
-        let base_offset = self.bgmap_base_offset() + ((self.ly + self.scy) / 8) as u16 * 32;
-        let mut tile_offset = (self.scx / 8) as u16;
+    fn render_bg_scanline(&mut self) {
+        // FIXME(major): The background does not wrap
+        let map_base = self.bgmap_base_offset() + ((self.ly + self.scy) / 8) as u16 * 32;
+        let mut map_offset = (self.scx / 8) as u16;
 
         let tile_y = (self.ly + self.scy) % 8;
         let mut tile_x = self.scx % 8;
-        let mut tile_id = self.vram()[(base_offset + tile_offset) as uint] as uint;
-        if !self.tile_set_0() {
-            if tile_id < 128 { tile_id += 256 }
-        }
+
+        let mut tile_id = self.vram()[(map_base + map_offset) as uint] as uint;
+        tile_id = self.adjust_tile_id(tile_id);
 
         let mut draw_offset = self.ly as uint * WIDTH * 4;
         for _ in range(0, WIDTH) {
+            // Not sure why the tile_x needs to be reversed here.
             let color_id = self.tile_lookup(tile_id, 7 - tile_x, tile_y);
             let color = palette_lookup(self.bgp, color_id);
+
             write_pixel(&mut self.framebuffer, draw_offset as uint, color);
             draw_offset += 4;
 
             tile_x += 1;
-            // Check if we reached the end of a tile
+            // Move to the next tile if we have reached the end of this tile
             if tile_x >= 8 {
                 tile_x = 0;
-                tile_offset += 1;
-                tile_id = self.vram()[(base_offset + tile_offset) as uint] as uint;
-                if !self.tile_set_0() {
-                    if tile_id < 128 { tile_id += 256 }
-                }
+                map_offset += 1;
+                tile_id = self.vram()[(map_base + map_offset) as uint] as uint;
+                tile_id = self.adjust_tile_id(tile_id);
             }
         }
     }
 
-    pub fn render_sprite_scanline(&mut self) {
-        // CHECKME: This could be the wrong way around
-        // Determine the sprite height by looking at the lcdc register
-        let sprite_height = self.get_sprite_height();
+    fn render_window_scanline(&mut self) {
+        // If the current line is less than the window's y offset or the window's x offset if off
+        // the screen, then we have nothing to do for this scanline.
+        if self.ly < self.wy || self.wx >= WIDTH as u8 + 7 {
+            return
+        }
 
+        let map_base = self.winmap_base_offset() + ((self.ly - self.wy) / 8) as u16 * 32;
+        let mut map_offset = 0;
+
+        let tile_y = (self.ly - self.wy) % 8;
+        // FIXME(major): correctly handle window wrapping
+        let mut tile_x = self.wx - 7;
+
+        let mut tile_id = self.vram()[(map_base + map_offset) as uint] as uint;
+        tile_id = self.adjust_tile_id(tile_id);
+
+        let mut draw_offset = self.ly as uint * WIDTH * 4;
+        for _ in range(0, WIDTH) {
+            // Not sure why the tile_x needs to be reversed here.
+            let color_id = self.tile_lookup(tile_id, 7 - tile_x, tile_y);
+            let color = palette_lookup(self.bgp, color_id);
+
+            write_pixel(&mut self.framebuffer, draw_offset as uint, color);
+            draw_offset += 4;
+
+            tile_x += 1;
+            // Move to the next tile if we have reached the end of this tile
+            // FIXME(major): correctly handle window wrapping
+            if tile_x >= 8 {
+                tile_x = 0;
+                map_offset += 1;
+                tile_id = self.vram()[(map_base + map_offset) as uint] as uint;
+                tile_id = self.adjust_tile_id(tile_id);
+            }
+        }
+    }
+
+    fn render_sprite_scanline(&mut self) {
+        let sprite_height = self.get_sprite_height();
         let line_num = self.ly as int;
 
         // TODO(major): Set priorities in GB mode
         // TODO(major): Only allow 10 sprites per scanline in CGB mode
-        let mut num_sprites = 0_i32;
+        let mut _num_sprites = 0_i32;
 
-        // FIXME(minor): Can we do this more efficiently
+        // FIXME(minor): Can we do this more efficiently?
         for sprite in self.oam.chunks(4) {
             // Read sprite attributes
             let mut dy = sprite[0] as int - 16;
@@ -274,8 +324,10 @@ impl Gpu {
             if dy > line_num || dy + sprite_height <= line_num || dx <= -8 || dx >= WIDTH as int {
                 continue
             }
-            num_sprites += 1;
+            _num_sprites += 1;
 
+            // 8x16 sprites consist of two adjacent tiles, so adjust the tile id based on where we
+            // are in the sprite
             if sprite_height == 16 {
                 tile_id &= 0xFE;
                 if self.ly as int - dy >= 8 {
@@ -402,7 +454,6 @@ pub fn oam_dma_transfer(mem: &mut Memory) {
     for i in range(0, OAM_SIZE) {
         mem.gpu.oam[i] = mem.lb(start_addr + i as u16);
     }
-    mem.gpu.draw_oam();
 }
 
 pub fn palette_lookup(palette: u8, color_id: uint) -> Color {
