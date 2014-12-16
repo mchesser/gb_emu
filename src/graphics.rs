@@ -23,7 +23,9 @@ const GB_COLOR_TABLE: &'static [Color] = &[
     [0x60, 0x60, 0x60, 0xFF], // 66% on (dark gray)
     [0x00, 0x00, 0x00, 0xFF], // 100% on (black)
 ];
-
+pub fn palette_lookup(palette: u8, color_id: uint) -> Color {
+    GB_COLOR_TABLE[((palette >> (2 * color_id)) & 0x3) as uint]
+}
 
 pub enum Mode {
     HBlank   = 0,
@@ -171,7 +173,6 @@ impl Gpu {
     fn bgmap_base_offset(&self) -> u16 {
         if self.lcdc & 0b0000_1000 == 0 { 0x1800 } else { 0x1C00 }
     }
-
 
     fn get_sprite_height(&self) -> int {
         if self.lcdc & 0b0000_0100 == 0 { 8 } else { 16 }
@@ -341,6 +342,7 @@ impl Gpu {
 
             // Get the y coordinate of the sprite. If bit 6 is set, the sprite is flipped so we take
             // the y offset from the bottom of the sprite.
+            // CHECKME: how are flipped 8x16 sprites handled
             let tile_y = if flags & 0x40 == 0 { line_num - dy } else { 7 - (line_num - dy) } as u8;
             assert!(tile_y < 8);
 
@@ -403,7 +405,7 @@ pub fn step(mem: &mut Memory, ticks: u8) {
         Mode::HBlank => {
             if mem.gpu.mode_clock >= timings::HBLANK as u16 {
                 mem.gpu.ly += 1;
-                if mem.gpu.ly > 142 {
+                if mem.gpu.ly >= HEIGHT as u8 {
                     mem.gpu.set_mode(Mode::VBlank);
                     mem.gpu.ready_flag = true;
                     mem.if_reg |= Interrupt::VBlank as u8;
@@ -442,6 +444,7 @@ fn write_pixel(framebuffer: &mut [u8], offset: uint, color: Color) {
     framebuffer[offset + 3] = color[3];
 }
 
+#[allow(dead_code)]
 fn write_pixel_xy(framebuffer: &mut [u8], x: uint, y: uint, color: Color) {
     let offset = (y * WIDTH + x) * 4;
     write_pixel(framebuffer, offset, color);
@@ -454,8 +457,4 @@ pub fn oam_dma_transfer(mem: &mut Memory) {
     for i in range(0, OAM_SIZE) {
         mem.gpu.oam[i] = mem.lb(start_addr + i as u16);
     }
-}
-
-pub fn palette_lookup(palette: u8, color_id: uint) -> Color {
-    GB_COLOR_TABLE[((palette >> (2 * color_id)) & 0x3) as uint]
 }

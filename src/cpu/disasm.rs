@@ -240,7 +240,7 @@ pub fn disasm(mut addr: u16, mem: &mut Memory) -> String {
         0xD1 => format!("pop\t\tde"),
         0xD2 => format!("jp\t\tnc, {:X}h", get_nn!()),
         0xD3 => invalid_inst(op),
-        0xD4 => format!("call\tc, {:X}h", get_nn!()),
+        0xD4 => format!("call\tnc, {:X}h", get_nn!()),
         0xD5 => format!("push\t\tde"),
         0xD6 => format!("add\t\ta, {}", get_n!()),
         0xD7 => format!("rst\t\t10h"),

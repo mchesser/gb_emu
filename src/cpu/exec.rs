@@ -149,7 +149,8 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
 
     // ADD SP, n
     macro_rules! add_spn { () => ({
-        let offset = get_n!() as i16;
+        // Get offset as a 2s complement integer
+        let offset = (get_n!() as i8) as i16;
         // Not sure if conditions bits should be set here
         cpu.sp = (cpu.sp as i16 + offset) as u16;
     }) }
@@ -412,11 +413,6 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
         let val = get_nn!();
         cpu.sp = val;
     }) }
-    // ADD SP, nn
-    macro_rules! add_spnn { () => ({
-        let offset = get_nn!() as i16;
-        cpu.sp = (cpu.sp as i16 + offset) as u16;
-    }) }
     // LDI A, (HL)
     macro_rules! ldi_aHL { () => ({
         cpu.a = mem.lb(cpu.hl().get());
@@ -441,7 +437,7 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
     }) }
     // LD HL,SP+n
     macro_rules! ld_hlspn { () => ({
-        let val = ((get_n!() as i8) as i32 + cpu.sp as i32) as u16;
+        let val = ((get_n!() as i8) as i16 + cpu.sp as i16) as u16;
         cpu.hl().set(val);
     }) }
 
