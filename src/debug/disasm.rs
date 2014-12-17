@@ -5,7 +5,7 @@ fn invalid_inst(op: u8) -> String {
     format!("0x{:2X}", op)
 }
 
-pub fn disasm(mut addr: u16, mem: &mut Memory) -> String {
+pub fn disasm(mut addr: u16, mem: &Memory) -> String {
     macro_rules! get_n { () => ({ addr += 1; mem.lb(addr - 1) }) }
     macro_rules! get_ni { () => (get_n!() as i8) }
     macro_rules! get_nn { () => (get_n!() as u16 + (get_n!() as u16 << 8)) }
@@ -223,7 +223,7 @@ pub fn disasm(mut addr: u16, mem: &mut Memory) -> String {
         0xC2 => format!("jp\t\tnz, {:X}h", get_nn!()),
         0xC3 => format!("jp\t\t{:X}h", get_nn!()),
         0xC4 => format!("call\tnz, {:X}h", get_nn!()),
-        0xC5 => format!("push\t\tbc"),
+        0xC5 => format!("push\tbc"),
         0xC6 => format!("add\t\ta, {}", get_n!()),
         0xC7 => format!("rst\t\t00h"),
         0xC8 => format!("ret\t\tz"),
@@ -240,7 +240,7 @@ pub fn disasm(mut addr: u16, mem: &mut Memory) -> String {
         0xD2 => format!("jp\t\tnc, {:X}h", get_nn!()),
         0xD3 => invalid_inst(op),
         0xD4 => format!("call\tnc, {:X}h", get_nn!()),
-        0xD5 => format!("push\t\tde"),
+        0xD5 => format!("push\tde"),
         0xD6 => format!("add\t\ta, {}", get_n!()),
         0xD7 => format!("rst\t\t10h"),
         0xD8 => format!("ret\t\tc"),
@@ -257,7 +257,7 @@ pub fn disasm(mut addr: u16, mem: &mut Memory) -> String {
         0xE2 => format!("ld\t\t(FF00+C), a"),
         0xE3 => invalid_inst(op),
         0xE4 => invalid_inst(op),
-        0xE5 => format!("push\t\thl"),
+        0xE5 => format!("push\thl"),
         0xE6 => format!("and\t\ta, {}", get_n!()),
         0xE7 => format!("rst\t\t20h"),
         0xE8 => format!("add\t\tsp, {}", get_n!()),
@@ -274,7 +274,7 @@ pub fn disasm(mut addr: u16, mem: &mut Memory) -> String {
         0xF2 => format!("ld\t\ta, (FF00+C)"),
         0xF3 => format!("di"),
         0xF4 => invalid_inst(op),
-        0xF5 => format!("push\t\taf"),
+        0xF5 => format!("push\taf"),
         0xF6 => format!("or\t\ta, {}", get_n!()),
         0xF7 => format!("rst\t\t30h"),
         0xF8 => format!("ld\t\thl, sp+{}", get_ni!()),
@@ -290,7 +290,7 @@ pub fn disasm(mut addr: u16, mem: &mut Memory) -> String {
     }
 }
 
-fn disasm_long(addr: u16, mem: &mut Memory) -> String{
+fn disasm_long(addr: u16, mem: &Memory) -> String{
     let op = mem.lb(addr);
 
     match op {

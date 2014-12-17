@@ -1,9 +1,10 @@
 use cpu::{Cpu, State};
 use mmu::Memory;
 use debug::symbols::{SymbolTable, build_symbol_table};
+use debug::disasm::disasm;
 
-mod symbols;
-mod disasm;
+pub mod symbols;
+pub mod disasm;
 
 const HIDDEN_FUNCTIONS: &'static [(u8, u16)] = &[
 ];
@@ -14,15 +15,17 @@ pub struct Logger {
     call_stack: Vec<u16>,
     hide_output: bool,
     reveal_at: uint,
+    show_individual: bool,
 }
 
 impl Logger {
     pub fn new() -> Logger {
         Logger {
-            symbols: build_symbol_table(include_str!("test.sym")),
+            symbols: build_symbol_table(include_str!("test1.sym")),
             call_stack: Vec::new(),
             hide_output: false,
             reveal_at: 0,
+            show_individual: false,
         }
     }
 }
@@ -35,8 +38,17 @@ pub fn stack_traces(logger: &mut Logger, cpu: &Cpu, mem: &Memory) {
         print_text(logger, "...");
     }
 
+    if cpu.pc == 0xC2A6 {
+        logger.show_individual = true;
+    }
+
     check_interrupts(logger, cpu, mem);
     if cpu.state == State::Running {
+        let addr = cpu.pc;
+        if logger.show_individual && !logger.hide_output {
+            print_tabbing(logger);
+            println!("{:04X}:\t{}", addr, disasm(addr, mem));
+        }
         check_branch_instructions(logger, cpu, mem);
     }
 }

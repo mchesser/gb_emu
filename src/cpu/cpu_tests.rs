@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod cpu_tests {
     use cpu::Cpu;
-    use cpu::disasm;
     use mmu::Memory;
+    use debug::disasm;
 
     const Z: u8 = super::ZERO_FLAG;
     const N: u8 = super::ADD_SUB_FLAG;
@@ -22,9 +22,9 @@ mod cpu_tests {
     fn instruction_runner(cpu: &mut Cpu, mem: &mut Memory, times: uint) -> uint {
         let mut num_cycles = 0;
         for _ in range(0, times) {
+            // Print out the instructions for debugging
             println!("{:04X}:\t\t{}", cpu.pc, disasm::disasm(cpu.pc, mem));
             num_cycles += cpu.step(mem) as uint;
-            println!("{}", num_cycles);
         }
         num_cycles
     }
@@ -144,9 +144,10 @@ mod cpu_tests {
     }
 
     #[test]
-    fn push16_pop16() {
+    fn pushpop_af() {
         let (mut c, mut m) = init();
-        c.bc().set(0x1200);
+        c.bc().set(0x1201);
+        c.sp = 0xE200;
 
         m.sb(c.pc + 0, 0xC5);   // push bc
         m.sb(c.pc + 1, 0xF1);   // pop af
@@ -157,6 +158,7 @@ mod cpu_tests {
 
         let cycles = instruction_runner(&mut *c, &mut *m, 6);
         assert_eq!(c.a, c.e);
+        assert_eq!(c.sp, 0xE200);
         assert_eq!(cycles, 16 + 12 + 16 + 12 + 4 + 8)
     }
 
