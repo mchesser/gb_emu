@@ -54,11 +54,11 @@ impl Joypad {
 
     /// Write a value to the joypad register
     pub fn write(&mut self, value: u8) {
-        match (value & 0x10 == 0, value & 0x8 == 0) {
-            (true, true) => {}, // Not sure how we should handle this case
-            (false, true) => self.read_mode = ReadMode::Button,
-            (true, false) => self.read_mode = ReadMode::Direction,
-            (false, false) => {},
+        match (!value & 0x30) {
+            0x20 => self.read_mode = ReadMode::Button,
+            0x10 => self.read_mode = ReadMode::Direction,
+            0x00 => {},
+            _ => {},
         }
     }
 }

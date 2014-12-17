@@ -86,7 +86,7 @@ fn handle_joypad_event(joypad: &mut joypad::Joypad, keycode: KeyCode, state: joy
 
         KeyCode::Z => joypad.a = state,
         KeyCode::X => joypad.b = state,
-        KeyCode::KpEnter => joypad.start = state,
+        KeyCode::Return => joypad.start = state,
         KeyCode::RShift => joypad.select = state,
 
         _ => {},

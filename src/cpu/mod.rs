@@ -107,7 +107,7 @@ impl Cpu {
             elapsed_cycles += 1;
         }
 
-        if self.ime != 0 {
+        if self.ime != 0 || self.state == State::Halted {
             elapsed_cycles += self.handle_interrupts(mem);
         }
 
@@ -120,19 +120,20 @@ impl Cpu {
     /// Returns the amount of elapsed cycles (if any) as a result of processing interrupts.
     fn handle_interrupts(&mut self, mem: &mut Memory) -> u8 {
         let interrupts = mem.if_reg & mem.ie_reg;
-
         if interrupts == 0 {
+            // No interrupts to handle
             return 0;
         }
 
-        // Disable interrupts
-        self.disable_interrupts(mem);
-
         // Get the highest priority interrupt
         let i = interrupts.trailing_zeros();
-        mem.if_reg &= !(1 << i);
 
-        // Call the correct correct interrupt handler
+        // Clear the interrupt bit if the CPU is not halted
+        if self.state != State::Halted {
+            mem.if_reg &= !(1 << i);
+        }
+
+        self.disable_interrupts(mem);
         self.call(mem, INTERRUPT_TABLE[i]);
         self.state = State::Running;
 

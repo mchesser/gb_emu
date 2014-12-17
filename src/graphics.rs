@@ -41,7 +41,7 @@ struct LcdStatRegister {
     vblank_interrupt: bool, // Bit 4
     hblank_interrupt: bool, // Bit 3
     // lcy_flag: bool          Bit 2 (generated automatically)
-    mode: Mode,        // Bit 0-1
+    mode: Mode,             // Bit 0-1
 }
 
 impl LcdStatRegister {

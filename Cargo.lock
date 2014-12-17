@@ -1,0 +1,12 @@
+[root]
+name = "gb_emu"
+version = "0.0.1"
+dependencies = [
+ "sdl2 0.0.10 (git+https://github.com/AngryLawyer/rust-sdl2.git)",
+]
+
+[[package]]
+name = "sdl2"
+version = "0.0.10"
+source = "git+https://github.com/AngryLawyer/rust-sdl2.git#2443bab12097018505dbb303a5fb70e86afa9bab"
+

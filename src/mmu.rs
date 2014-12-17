@@ -203,8 +203,9 @@ impl Memory {
             0x4000 ... 0x7FFF => self.rom[self.rom_bank][(addr & 0x3FFF) as uint],
             0x8000 ... 0x9FFF => self.gpu.vram()[(addr & 0x1FFF) as uint],
             0xA000 ... 0xBFFF => self.external_ram[self.ram_bank][(addr & 0x1FFF) as uint],
-            0xC000 ... 0xDFFF => self.working_ram[(addr & 0x0FFF) as uint],
-            0xE000 ... 0xFDFF => self.working_ram[(addr & 0x0FFF) as uint],
+            // NOTE: Check this mapping when adding CGB support
+            0xC000 ... 0xDFFF => self.working_ram[(addr & 0x1FFF) as uint],
+            0xE000 ... 0xFDFF => self.working_ram[(addr & 0x1FFF) as uint],
             0xFE00 ... 0xFE9F => self.gpu.oam[(addr & 0x00FF) as uint],
             0xFEA0 ... 0xFEFF => 0,
             0xFF00 ... 0xFF7F => self.read_io(addr),
@@ -285,7 +286,7 @@ impl Memory {
             0xFF76 => 0, // Undocumented - Always 0
             0xFF77 => 0, // Undocumented - Always 0
 
-            _      => { println!("unimplemented: {:4x}", addr); 0 },
+            _      => 0,
         }
     }
 
@@ -369,12 +370,10 @@ impl Memory {
             0x8000 ... 0x9FFF => self.gpu.vram_mut()[(addr & 0x1FFF) as uint] = value,
             // FIXME(minor): We don't actually check if the ram has been enabled berfore writing
             // to it
-            0xA000 ... 0xBFFF => {
-                assert!(self.ram_enabled);
-                self.external_ram[self.ram_bank][(addr & 0x1FFF) as uint] = value;
-            },
-            0xC000 ... 0xDFFF => self.working_ram[(addr & 0x0FFF) as uint] = value,
-            0xE000 ... 0xFDFF => self.working_ram[(addr & 0x0FFF) as uint] = value,
+            0xA000 ... 0xBFFF => self.external_ram[self.ram_bank][(addr & 0x1FFF) as uint] = value,
+            // NOTE: Check this mapping when adding CGB support
+            0xC000 ... 0xDFFF => self.working_ram[(addr & 0x1FFF) as uint] = value,
+            0xE000 ... 0xFDFF => self.working_ram[(addr & 0x1FFF) as uint] = value,
             0xFE00 ... 0xFE9F => self.gpu.oam[(addr & 0x00FF) as uint] = value,
             0xFEA0 ... 0xFEFF => self.invalid_memory(addr),
             0xFF00 ... 0xFF7F => self.write_io(addr, value),
@@ -458,7 +457,7 @@ impl Memory {
             0xFF76 => {}, // Undocumented - Always 0
             0xFF77 => {}, // Undocumented - Always 0
 
-            _      => println!("unimplemented: {:4x}", addr),
+            _      => {},
         }
     }
 
@@ -467,43 +466,5 @@ impl Memory {
     pub fn sw(&mut self, addr: u16, value: u16) {
         self.sb(addr, value as u8);
         self.sb(addr + 1, (value >> 8) as u8);
-    }
-
-    /// Write an entire array into memory starting at the address specified. If the amount of data
-    /// exceeds the avalible memory then only the start of the data will be wrtten.
-    ///
-    /// Returns the number of bytes written.
-    pub fn write_array(&mut self, start_addr: u16, data: &[u8]) -> u16 {
-        let mut addr = start_addr;
-        for byte in data.iter() {
-            // Check if this is the last address
-            if addr == 0xFFFF {
-                break;
-            }
-
-            self.sb(addr, *byte);
-            addr += 1;
-        }
-
-        addr - start_addr
-    }
-
-    /// Reads data from memory into a provided buffer. Keeps reading until either the buffer is full
-    /// or we have reached the end of the avaliable memory.
-    ///
-    /// Returns the number of bytes read.
-    pub fn read_array(&mut self, start_addr: u16, buffer: &mut [u8]) -> u16 {
-        let mut addr = start_addr;
-        for byte in buffer.iter_mut() {
-            // Check if this is the last address
-            if addr == 0xFFFF {
-                break;
-            }
-
-            *byte = self.lb(addr);
-            addr += 1;
-        }
-
-        addr - start_addr
     }
 }
