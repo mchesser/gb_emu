@@ -3,6 +3,7 @@ pub enum ReadMode {
     Direction,
 }
 
+#[deriving(PartialEq)]
 pub enum State {
     Pressed = 0,
     Released = 1,
@@ -41,17 +42,14 @@ impl Joypad {
 
     /// Read the value of the joypad register
     pub fn read(&self) -> u8 {
-        let val = match self.read_mode {
+        match self.read_mode {
             ReadMode::Button => {
                 self.start as u8 << 3 | self.select as u8 << 2 | self.b as u8 << 1 | self.a as u8
             },
             ReadMode::Direction => {
                 self.down as u8 << 3 | self.up as u8 << 2 | self.left as u8 << 1 | self.right as u8
             },
-        };
-
-        // println!("reading joypad, value is: {:4b}", val);
-        val
+        }
     }
 
     /// Write a value to the joypad register

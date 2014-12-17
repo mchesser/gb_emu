@@ -12,18 +12,20 @@ pub enum DeviceMode {
     GameBoyColor,
 }
 
-pub struct Emulator {
+pub struct Emulator<F> {
     pub mem: Memory,
     cpu: Cpu,
     cycles: i32,
+    extern_fn: F,
 }
 
-impl Emulator {
-    pub fn new() -> Emulator {
+impl<F> Emulator<F> where F: FnMut(&mut Cpu, &mut Memory) {
+    pub fn new(extern_fn: F) -> Emulator<F> {
         Emulator {
             mem: Memory::new(),
             cpu: Cpu::new(),
             cycles: 0,
+            extern_fn: extern_fn,
         }
     }
 
@@ -45,6 +47,8 @@ impl Emulator {
         }
 
         while self.cycles <= graphics::timings::FULL_FRAME as i32 {
+            (self.extern_fn)(&mut self.cpu, &mut self.mem);
+
             let instruction_time = self.cpu.step(&mut self.mem);
             timer::step(&mut self.mem, instruction_time);
             graphics::step(&mut self.mem, instruction_time);

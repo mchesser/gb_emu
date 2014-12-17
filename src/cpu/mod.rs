@@ -2,12 +2,8 @@ use std::num::Int;
 
 use cpu::exec::fetch_exec;
 use mmu::Memory;
-use symbols::{SymbolTable, build_symbol_table};
 
 pub mod exec;
-pub mod disasm;
-
-const DEBUG: bool = false;
 
 const INTERRUPT_TABLE: &'static [u16] = &[
     0x0040,   // V-Blank
@@ -65,13 +61,6 @@ pub struct Cpu {
 
     pub state: State,
     pub clock: u8,
-
-    symbols: SymbolTable,
-    stack_depth: i32,
-    stack_addr: Vec<u16>,
-
-    prev: u16,
-    loop_count: u32,
 }
 
 impl Cpu {
@@ -88,13 +77,6 @@ impl Cpu {
 
             state: State::Running,
             clock: 0,
-
-            symbols: build_symbol_table(include_str!("testGame5.sym")),
-            stack_depth: 0,
-            stack_addr: vec![],
-
-            prev: 0,
-            loop_count: 0,
         }
     }
 
@@ -118,21 +100,19 @@ impl Cpu {
         }
 
         let mut elapsed_cycles = 0;
-        if self.ime != 0 {
-            elapsed_cycles += self.handle_interrupts(mem);
-        }
-
-        if self.state != State::Halted && self.state != State::Stopped {
-            // println!("{:04X}:\t\t{}", self.pc, disasm::disasm(self.pc, mem));
+        if self.state == State::Running {
             elapsed_cycles += fetch_exec(self, mem);
         }
         else {
             elapsed_cycles += 1;
         }
 
+        if self.ime != 0 {
+            elapsed_cycles += self.handle_interrupts(mem);
+        }
+
         // TODO: add support for CGB double speed mode
         self.clock += elapsed_cycles * 4;
-
         elapsed_cycles * 4
     }
 
@@ -170,68 +150,19 @@ impl Cpu {
     }
 
     /// Jumps to a location
-    fn jump(&mut self, mem: &mut Memory, addr: u16) {
+    fn jump(&mut self, addr: u16) {
         self.pc = addr;
-
-        if DEBUG {
-            if self.pc == self.prev {
-                self.loop_count += 1;
-                return;
-            }
-            else {
-                if self.loop_count != 0 {
-                    for _ in range(0, self.stack_depth) { print!("    "); }
-                    println!("x {}", self.loop_count);
-                    self.loop_count = 0;
-                }
-                self.prev = self.pc;
-            }
-
-            for _ in range(0, self.stack_depth) { print!("    "); }
-            let bank_num = if self.pc < 0x4000 { 0 } else { mem.rom_bank as u8 };
-            match self.symbols.get(&(bank_num, self.pc)) {
-                Some(name) => println!("->{}", name),
-                None => println!("->{:02X}:{:04X}", bank_num, self.pc),
-            }
-        }
     }
 
     fn call(&mut self, mem: &mut Memory, addr: u16) {
         self.sp -= 2;
         mem.sw(self.sp, self.pc);
         self.pc = addr;
-
-        if DEBUG {
-            self.stack_addr.push(mem.lw(self.sp));
-
-            for _ in range(0, self.stack_depth) { print!("    "); }
-            let bank_num = if self.pc < 0x4000 { 0 } else { mem.rom_bank as u8 };
-            match self.symbols.get(&(bank_num, self.pc)) {
-                Some(name) => println!("CALL: {}", name),
-                None => println!("CALL: {:02X}:{:04X}", bank_num, self.pc),
-            }
-        }
-        if self.stack_depth < 0 { self.stack_depth = 0; }
-        self.stack_depth += 1;
     }
 
     fn ret(&mut self, mem: &mut Memory) {
         self.pc = mem.lw(self.sp);
         self.sp += 2;
-
-        if DEBUG {
-            if self.stack_addr.last() == Some(&self.pc) {
-                self.stack_addr.pop();
-                self.stack_depth -= 1;
-
-                for _ in range(0, self.stack_depth) { print!("    "); }
-                println!("RETURN");
-            }
-            else {
-                for _ in range(0, self.stack_depth) { print!("    "); }
-                println!("..RETURN");
-            }
-        }
     }
 
     /// Handle instructions corresponding to invalid opcodes

@@ -9,7 +9,7 @@ use timer::Timer;
 
 use mmu::MemoryBankController::{NoMbc, Mbc1, Mbc2, Mbc3};
 
-#[deriving(PartialEq)]
+#[deriving(Show, PartialEq)]
 enum MemoryBankController {
     NoMbc, // No memory bank controller (32Kbyte ROM only)
     Mbc1,  // Max 2MBbyte ROM and/or 32KByte RAM
@@ -57,6 +57,8 @@ pub struct Memory {
 
     /// Working ram (mapped to: 0xC000-0xDFFF, shadow: 0xE000-0xFDFF)
     pub working_ram: [u8, ..0x2000],
+    /// The currently mapped working ram bank (CGB only)
+    pub wram_bank: uint,
 
     /// Zero-page high speed ram (mapped to: 0xFF80-0xFFFE)
     pub fast_ram: [u8, ..0x7F],
@@ -96,6 +98,7 @@ impl Memory {
             ram_enabled: false,
 
             working_ram: [0, ..0x2000],
+            wram_bank: 0,
             fast_ram: [0, ..0x7F],
 
             gpu: Gpu::new(),
@@ -179,6 +182,7 @@ impl Memory {
 
             x => { panic!("Unsupported cartridge: {:X}", x); }
         }
+        println!("{}", self.mbc);
     }
 
     /// Handle invalid memory accesses
@@ -188,7 +192,7 @@ impl Memory {
     }
 
     /// Load a byte from memory
-    pub fn lb(&mut self, addr: u16) -> u8 {
+    pub fn lb(&self, addr: u16) -> u8 {
         if self.crashed { return 0; };
 
         // Map memory reads to their correct bytes. (See: http://problemkaputt.de/pandocs.htm)
@@ -201,8 +205,8 @@ impl Memory {
             0xA000 ... 0xBFFF => self.external_ram[self.ram_bank][(addr & 0x1FFF) as uint],
             0xC000 ... 0xDFFF => self.working_ram[(addr & 0x0FFF) as uint],
             0xE000 ... 0xFDFF => self.working_ram[(addr & 0x0FFF) as uint],
-            0xFE00 ... 0xFE9F => self.gpu.oam[(addr & 0x01FF) as uint],
-            0xFEA0 ... 0xFEFF => { self.invalid_memory(addr); 0},
+            0xFE00 ... 0xFE9F => self.gpu.oam[(addr & 0x00FF) as uint],
+            0xFEA0 ... 0xFEFF => 0,
             0xFF00 ... 0xFF7F => self.read_io(addr),
             0xFF80 ... 0xFFFE => self.fast_ram[(addr & 0x7F) as uint],
             0xFFFF            => self.ie_reg,
@@ -212,7 +216,7 @@ impl Memory {
     }
 
     /// Read a byte from an IO device (maps: [0xFF00-0xFF7F])
-    fn read_io(&mut self, addr: u16) -> u8 {
+    fn read_io(&self, addr: u16) -> u8 {
         match addr {
             0xFF00 => self.joypad.read(),
             0xFF01 => self.sb, // TODO: map to serial transfer data
@@ -225,6 +229,7 @@ impl Memory {
 
             0xFF0F => self.if_reg,
 
+            // TODO: move this into sound controller file
             0xFF10 => self.sound.nr10,
             0xFF11 => self.sound.nr11,
             0xFF12 => self.sound.nr12,
@@ -272,7 +277,7 @@ impl Memory {
             // 0xFF6B => self.gpu.ocpd,
             // 0xFF68 => self.gpu.bcps,
 
-            // 0xFF70 => 0, // TODO: WRAM Bank
+            0xFF70 => panic!("Should not be here in gb mode"), // TODO: WRAM Bank in cgb mode
             0xFF72 => 0, // Undocumented
             0xFF73 => 0, // Undocumented
             0xFF74 => 0, // Undocumented
@@ -285,7 +290,7 @@ impl Memory {
     }
 
     /// Load a word from memory
-    pub fn lw(&mut self, addr: u16) -> u16 {
+    pub fn lw(&self, addr: u16) -> u16 {
         self.lb(addr) as u16 + (self.lb(addr + 1) as u16 << 8)
     }
 
@@ -299,7 +304,7 @@ impl Memory {
             // Set RAM and RTC enabled/disabled
             0x0000 ... 0x1FFF => match self.mbc {
                 NoMbc => {},
-                Mbc1 => self.ram_enabled = value == 0x0A,
+                Mbc1 => self.ram_enabled = value & 0xF == 0x0A,
                 Mbc2 => {
                     if addr & 0x0100 == 0 {
                         self.ram_enabled = !self.ram_enabled;
@@ -364,10 +369,13 @@ impl Memory {
             0x8000 ... 0x9FFF => self.gpu.vram_mut()[(addr & 0x1FFF) as uint] = value,
             // FIXME(minor): We don't actually check if the ram has been enabled berfore writing
             // to it
-            0xA000 ... 0xBFFF => self.external_ram[self.ram_bank][(addr & 0x1FFF) as uint] = value,
+            0xA000 ... 0xBFFF => {
+                assert!(self.ram_enabled);
+                self.external_ram[self.ram_bank][(addr & 0x1FFF) as uint] = value;
+            },
             0xC000 ... 0xDFFF => self.working_ram[(addr & 0x0FFF) as uint] = value,
             0xE000 ... 0xFDFF => self.working_ram[(addr & 0x0FFF) as uint] = value,
-            0xFE00 ... 0xFE9F => self.gpu.oam[(addr & 0x01FF) as uint] = value,
+            0xFE00 ... 0xFE9F => self.gpu.oam[(addr & 0x00FF) as uint] = value,
             0xFEA0 ... 0xFEFF => self.invalid_memory(addr),
             0xFF00 ... 0xFF7F => self.write_io(addr, value),
             0xFF80 ... 0xFFFE => self.fast_ram[(addr & 0x7F) as uint] = value,
@@ -381,10 +389,7 @@ impl Memory {
         match addr {
             0xFF00 => self.joypad.write(value),
             0xFF01 => self.sb = value,
-            0xFF02 => {
-                self.sc = value;
-                // print!("{}", self.sb as char);
-            },
+            0xFF02 => self.sc = value,
 
             0xFF04 => self.timer.div = value,
             0xFF05 => self.timer.tima = value,
@@ -445,7 +450,7 @@ impl Memory {
             // 0xFF6B => self.gpu.ocpd,
             // 0xFF68 => self.gpu.bcps,
 
-            // 0xFF70 => {}, // TODO: WRAM Bank
+            0xFF70 => { panic!("Should not be here in gb mode") }, // TODO: WRAM Bank
             0xFF72 => {}, // Undocumented
             0xFF73 => {}, // Undocumented
             0xFF74 => {}, // Undocumented

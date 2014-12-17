@@ -1,5 +1,4 @@
 #![allow(dead_code)]
-
 use mmu::Memory;
 
 fn invalid_inst(op: u8) -> String {

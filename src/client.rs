@@ -9,6 +9,8 @@ use sdl2::video::{Window, OPENGL};
 use sdl2::video::WindowPos::PosCentered;
 use sdl2::surface::Surface;
 
+use cpu::Cpu;
+use mmu::Memory;
 use gb;
 use graphics;
 use joypad;
@@ -22,7 +24,7 @@ const HEIGHT: int = graphics::HEIGHT as int * SCALE;
 const SRC_WIDTH: uint = graphics::WIDTH as uint;
 const SRC_HEIGHT: uint = graphics::HEIGHT as uint;
 
-pub fn run(mut emulator: Box<gb::Emulator>) {
+pub fn run<F>(mut emulator: Box<gb::Emulator<F>>) where F: FnMut(&mut Cpu, &mut Memory) {
     sdl2::init(sdl2::INIT_EVERYTHING);
 
     let window = match Window::new("GameBoy Emulator", PosCentered, PosCentered,
@@ -37,6 +39,8 @@ pub fn run(mut emulator: Box<gb::Emulator>) {
         Err(err) => panic!(format!("failed to get window surface: {}", err))
     };
 
+    let mut fast_mode = false;
+
     let mut timer = Timer::new();
     'main: loop {
         'event: loop {
@@ -45,10 +49,12 @@ pub fn run(mut emulator: Box<gb::Emulator>) {
 
                 Event::KeyDown(_, _, code, _, _, _) => {
                     handle_joypad_event(&mut emulator.mem.joypad, code, joypad::State::Pressed);
+                    if code == KeyCode::Space { fast_mode = true; }
                 },
 
                 Event::KeyUp(_, _, code, _, _, _) => {
                     handle_joypad_event(&mut emulator.mem.joypad, code, joypad::State::Released);
+                    if code == KeyCode::Space { fast_mode = false; }
                 },
 
                 Event::None => break,
@@ -57,7 +63,7 @@ pub fn run(mut emulator: Box<gb::Emulator>) {
         }
 
 
-        if timer.elapsed_seconds() >= 1.0 / 60.0 {
+        if fast_mode || timer.elapsed_seconds() >= 1.0 / 60.0 {
             timer.reset();
             emulator.frame();
         }

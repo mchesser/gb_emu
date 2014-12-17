@@ -339,7 +339,7 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
     // JP nn
     macro_rules! jp_nn { () => ({
         let addr = get_nn!();
-        cpu.jump(mem, addr);
+        cpu.jump(addr);
     }) }
     // JP c, nn
     macro_rules! jp_cnn { ($c: expr) => (
@@ -348,7 +348,7 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
     // JP hl
     macro_rules! jp_hl { () => ({
         let addr = cpu.hl().get();
-        cpu.jump(mem, addr);
+        cpu.jump(addr);
     }) }
     // JR e
     macro_rules! jr_e { () => ({
@@ -363,7 +363,7 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
     // JP (HL)
     macro_rules! jp_HL { () => ({
         let addr = mem.lw(cpu.hl().get());
-        cpu.jump(mem, addr);
+        cpu.jump(addr);
     }) }
 
     // CALL nn

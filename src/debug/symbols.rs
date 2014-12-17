@@ -20,7 +20,7 @@ pub fn build_symbol_table(input: &str) -> SymbolTable {
         let keys: Vec<_> = split_line[0].split(':').collect();
         
         let key = (from_str_radix(keys[0], 16).unwrap(), from_str_radix(keys[1], 16).unwrap());
-        let value = split_line[1].into_string();
+        let value = split_line[1].trim_left().into_string();
         
         table.insert(key, value);        
     }
