@@ -3,7 +3,7 @@ pub enum ReadMode {
     Direction,
 }
 
-#[deriving(PartialEq)]
+#[deriving(Copy, PartialEq)]
 pub enum State {
     Pressed = 0,
     Released = 1,

@@ -24,7 +24,8 @@ fn main() {
     let mut emulator = box Emulator::new(|cpu, mem| debug::stack_traces(&mut logger, cpu, mem));
 
     // Load a cart
-    let cart = File::open(&Path::new("testGame5.gb")).read_to_end().unwrap();
+    let filename = &*std::os::args()[1];
+    let cart = File::open(&Path::new(filename)).read_to_end().unwrap();
     emulator.load_cart(cart.as_slice());
     emulator.start();
 

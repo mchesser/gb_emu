@@ -27,6 +27,7 @@ pub fn palette_lookup(palette: u8, color_id: uint) -> Color {
     GB_COLOR_TABLE[((palette >> (2 * color_id)) & 0x3) as uint]
 }
 
+#[deriving(Copy)]
 pub enum Mode {
     HBlank   = 0,
     VBlank   = 1,
