@@ -13,8 +13,7 @@ const INTERRUPT_TABLE: &'static [u16] = &[
     0x0060,   // Joypad
 ];
 
-// FIXME(minor): Remove this allow when the remaining interrupts have been implemented
-#[allow(dead_code)]
+#[deriving(Copy)]
 #[repr(u8)]
 pub enum Interrupt {
     VBlank = 0b00000001,
@@ -24,7 +23,7 @@ pub enum Interrupt {
     Joypad = 0b00010000,
 }
 
-#[deriving(PartialEq)]
+#[deriving(PartialEq, Copy)]
 pub enum State {
     Running,
     Stopped,
@@ -42,6 +41,7 @@ pub enum State {
 /// * ime : Interrupt flags register (8-bit)
 ///
 /// In addition, the main register set can be combined into 16-bit registers: af, bc, de, hl
+#[allow(missing_copy_implementations)]
 pub struct Cpu {
     pub crashed: bool,
 
@@ -207,7 +207,7 @@ join_regs!((d, e) as de)
 join_regs!((h, l) as hl)
 join_regs!((a, f) as af)
 
-struct JointReg<'a> {
+pub struct JointReg<'a> {
     high: &'a mut u8,
     low: &'a mut u8,
 }

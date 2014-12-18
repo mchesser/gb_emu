@@ -5,7 +5,7 @@ use cpu::Cpu;
 use graphics;
 use timer;
 
-#[allow(dead_code)] // This code is not dead
+#[deriving(Copy)]
 pub enum DeviceMode {
     GameBoy,
     SuperGameBoy,

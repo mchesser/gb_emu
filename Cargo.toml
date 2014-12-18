@@ -3,9 +3,5 @@ name = "gb_emu"
 version = "0.0.1"
 authors = ["Michael Chesser"]
 
-[[bin]]
+[lib]
 name = "gb_emu"
-path = "src/main.rs"
-
-[dependencies.sdl2]
-git = "https://github.com/AngryLawyer/rust-sdl2.git"

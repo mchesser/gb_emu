@@ -1,6 +1,4 @@
-#![allow(dead_code)]
-
-use gb::DeviceMode;
+use emulator::DeviceMode;
 use graphics;
 use graphics::Gpu;
 use sound::SoundController;
@@ -9,8 +7,8 @@ use timer::Timer;
 
 use mmu::MemoryBankController::{NoMbc, Mbc1, Mbc2, Mbc3};
 
-#[deriving(Show, PartialEq)]
-enum MemoryBankController {
+#[deriving(Show, Copy, PartialEq)]
+pub enum MemoryBankController {
     NoMbc, // No memory bank controller (32Kbyte ROM only)
     Mbc1,  // Max 2MBbyte ROM and/or 32KByte RAM
     Mbc2,  // Max 256Kbyte ROM and 512x4 bits RAM
@@ -20,8 +18,8 @@ enum MemoryBankController {
     // Huc1,  // MBC with Infrared Controller
 }
 
-#[deriving(PartialEq)]
-enum BankingMode {
+#[deriving(Copy, PartialEq)]
+pub enum BankingMode {
     Rom,
     Ram,
 }

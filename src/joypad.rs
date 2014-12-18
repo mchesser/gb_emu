@@ -1,3 +1,5 @@
+
+#[deriving(Copy)]
 pub enum ReadMode {
     Button,
     Direction,
@@ -9,6 +11,7 @@ pub enum State {
     Released = 1,
 }
 
+#[allow(missing_copy_implementations)]
 pub struct Joypad {
     pub start: State,
     pub select: State,
@@ -54,7 +57,7 @@ impl Joypad {
 
     /// Write a value to the joypad register
     pub fn write(&mut self, value: u8) {
-        match (!value & 0x30) {
+        match !value & 0x30 {
             0x20 => self.read_mode = ReadMode::Button,
             0x10 => self.read_mode = ReadMode::Direction,
             0x00 => {},

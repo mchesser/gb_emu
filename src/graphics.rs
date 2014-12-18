@@ -16,7 +16,7 @@ pub mod timings {
     pub const FULL_FRAME: u32 = (OAM_READ + VRAM_READ + HBLANK) * 144 + VBLANK * 10;
 }
 
-type Color = [u8, ..4];
+pub type Color = [u8, ..4];
 const GB_COLOR_TABLE: &'static [Color] = &[
     [0xFF, 0xFF, 0xFF, 0xFF], // 0% on (white)
     [0xC0, 0xC0, 0xC0, 0xFF], // 33% on (light gray)

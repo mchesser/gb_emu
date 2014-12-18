@@ -3,6 +3,7 @@ use cpu::Interrupt;
 
 // pub const DIVIDER_RATE: uint = 16_384; // Hz
 
+#[allow(missing_copy_implementations)]
 pub struct Timer {
     /// Divider register (mapped to: 0xFF04)
     pub div: u8,

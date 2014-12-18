@@ -19,9 +19,9 @@ pub struct Logger {
 }
 
 impl Logger {
-    pub fn new() -> Logger {
+    pub fn new(symbols_file: &str) -> Logger {
         Logger {
-            symbols: build_symbol_table(include_str!("test1.sym")),
+            symbols: build_symbol_table(symbols_file),
             call_stack: Vec::new(),
             hide_output: false,
             reveal_at: 0,
@@ -36,10 +36,6 @@ pub fn stack_traces(logger: &mut Logger, cpu: &Cpu, mem: &Memory) {
     if logger.hide_output && logger.call_stack.len() <= logger.reveal_at {
         logger.hide_output = false;
         print_text(logger, "...");
-    }
-
-    if cpu.pc == 0xC2A6 {
-        logger.show_individual = true;
     }
 
     check_interrupts(logger, cpu, mem);
@@ -58,14 +54,14 @@ pub fn stack_traces(logger: &mut Logger, cpu: &Cpu, mem: &Memory) {
 fn check_interrupts(logger: &mut Logger, cpu: &Cpu, mem: &Memory) {
     if 0x0040 <= cpu.pc && cpu.pc <= 0x0060 {
         if !logger.hide_output {
-        print_tabbing(logger);
+            print_tabbing(logger);
             match cpu.pc {
                 0x0040 => println!("----| VBLANK |----"),
                 0x0048 => println!("----| STAT   |----"),
                 0x0050 => println!("----| TIMER  |----"),
                 0x0058 => println!("----| SERIAL |----"),
                 0x0060 => println!("----| JOYPAD |----"),
-                _ => println!("Error"),
+                _ => return,
             }
         }
 

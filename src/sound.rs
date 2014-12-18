@@ -1,3 +1,5 @@
+
+#[allow(missing_copy_implementations)]
 pub struct SoundController {
     /// Channel 1 Sweep register
     pub nr10: u8,
