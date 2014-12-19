@@ -58,8 +58,12 @@ impl<F> Emulator<F> where F: FnMut(&mut Cpu, &mut Memory) {
     }
 
     /// Returns the internal display
-    pub fn display(&mut self) -> &[u8] {
+    pub fn display(&self) -> &[u8] {
         &self.mem.gpu.framebuffer
+    }
+
+    pub fn display_mut(&mut self) -> &mut [u8] {
+        &mut self.mem.gpu.framebuffer
     }
 }
 
