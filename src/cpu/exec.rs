@@ -1,5 +1,5 @@
-//! Here we define functions to emulate the GB instructions. Because many of the instructions
-//! only differ by the registers they are acting on macros are used to reduce code duplication.
+//! Here we define functions to emulate the GB instructions. Because many of the instructions only
+//! differ by the registers they are acting on macros are used to reduce code duplication.
 //! (Inspired by alexchricton's GB emulator)
 
 use cpu::Cpu;
@@ -450,7 +450,6 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
     macro_rules! stop { () => ( cpu.stop(); ) }
 
     // Fetch the next instruction from memory
-    // println!("0x{:04X}:\t{}", cpu.pc, disasm::disasm(cpu.pc, mem));
     let op = mem.lb(cpu.bump());
 
     // Decode and execute the instruction, returning the number of cycles required to run it.
@@ -532,7 +531,7 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
         0x43 => { ld!(b, e);            1 },
         0x44 => { ld!(b, h);            1 },
         0x45 => { ld!(b, l);            1 },
-        0x46 => { ld_rDD!(b, hl)        2 },
+        0x46 => { ld_rDD!(b, hl);       2 },
         0x47 => { ld!(b, a);            1 },
         0x48 => { ld!(c, b);            1 },
         0x49 => { ld!(c, c);            1 },
@@ -549,7 +548,7 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
         0x53 => { ld!(d, e);            1 },
         0x54 => { ld!(d, h);            1 },
         0x55 => { ld!(d, l);            1 },
-        0x56 => { ld_rDD!(d, hl)        2 },
+        0x56 => { ld_rDD!(d, hl);       2 },
         0x57 => { ld!(d, a);            1 },
         0x58 => { ld!(e, b);            1 },
         0x59 => { ld!(e, c);            1 },
@@ -566,7 +565,7 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
         0x63 => { ld!(h, e);            1 },
         0x64 => { ld!(h, h);            1 },
         0x65 => { ld!(h, l);            1 },
-        0x66 => { ld_rDD!(h, hl)        2 },
+        0x66 => { ld_rDD!(h, hl);       2 },
         0x67 => { ld!(h, a);            1 },
         0x68 => { ld!(l, b);            1 },
         0x69 => { ld!(l, c);            1 },

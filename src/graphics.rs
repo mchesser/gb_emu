@@ -3,6 +3,7 @@ use cpu::Interrupt;
 
 pub const HEIGHT: uint = 144;
 pub const WIDTH: uint = 160;
+const VBLANK_END: u8 = 153;
 
 const VRAM_SIZE: uint = 0x2000;
 const OAM_SIZE: uint = 0xA0;
@@ -424,7 +425,7 @@ pub fn step(mem: &mut Memory, ticks: u8) {
             if mem.gpu.mode_clock >= timings::VBLANK as u16 {
                 mem.gpu.mode_clock = 0;
                 mem.gpu.ly += 1;
-                if mem.gpu.ly > 153 {
+                if mem.gpu.ly > VBLANK_END {
                     mem.gpu.set_mode(Mode::OamRead);
                     mem.gpu.ly = 0;
                 }
@@ -443,12 +444,6 @@ fn write_pixel(framebuffer: &mut [u8], offset: uint, color: Color) {
     framebuffer[offset + 1] = color[1];
     framebuffer[offset + 2] = color[2];
     framebuffer[offset + 3] = color[3];
-}
-
-#[allow(dead_code)]
-fn write_pixel_xy(framebuffer: &mut [u8], x: uint, y: uint, color: Color) {
-    let offset = (y * WIDTH + x) * 4;
-    write_pixel(framebuffer, offset, color);
 }
 
 /// Perform a DMA transfer from memory to the sprite access table

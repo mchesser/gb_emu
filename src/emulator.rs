@@ -29,18 +29,21 @@ impl<F> Emulator<F> where F: FnMut(&mut Cpu, &mut Memory) {
         }
     }
 
+    /// Load a cart into the emulator rom
     pub fn load_cart(&mut self, data: &[u8]) {
         for (i, chunk) in data.chunks(0x4000).enumerate() {
             copy_memory(&mut self.mem.rom[i], chunk);
         }
     }
 
+    /// Initialise the emulator with the expected startup values
     pub fn start(&mut self) {
         self.cpu.start_up();
         self.mem.start_up(DeviceMode::GameBoy);
     }
 
-    /// Run the emulator for one frame
+    /// Run the emulator for one frame. To emulate the gameboy system realistically this should be
+    /// called at 60 Hz
     pub fn frame(&mut self) {
         if self.mem.crashed | self.cpu.crashed {
             return;
@@ -57,12 +60,11 @@ impl<F> Emulator<F> where F: FnMut(&mut Cpu, &mut Memory) {
         self.cycles -= graphics::timings::FULL_FRAME as i32;
     }
 
-    /// Returns the internal display
-    pub fn display(&self) -> &[u8] {
+    pub fn framebuffer(&self) -> &[u8] {
         &self.mem.gpu.framebuffer
     }
 
-    pub fn display_mut(&mut self) -> &mut [u8] {
+    pub fn framebuffer_mut(&mut self) -> &mut [u8] {
         &mut self.mem.gpu.framebuffer
     }
 }

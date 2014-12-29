@@ -1,3 +1,5 @@
+//! Module for disassembling opcodes into human readable representations
+
 use mmu::Memory;
 
 fn invalid_inst(op: u8) -> String {

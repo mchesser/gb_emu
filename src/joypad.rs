@@ -1,3 +1,4 @@
+//! Manages the gameboy joypad.
 
 #[deriving(Copy)]
 pub enum ReadMode {

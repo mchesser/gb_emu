@@ -62,7 +62,7 @@ pub fn step(mem: &mut Memory, ticks: u8) {
 }
 
 
-/// Ticks the divider register by 1. This function should be called at a rate of `DIVIDER_RATE`.
+/// Ticks the divider register by 1. This function should be called at a rate of `16,384`.
 fn tick_divider(mem: &mut Memory) {
     mem.timer.div += 1;
 }
@@ -71,7 +71,7 @@ fn tick_divider(mem: &mut Memory) {
 /// in the timer control register.
 fn tick_counter(mem: &mut Memory) {
     mem.timer.tima += 1;
-    
+
     // Set interrupt bit if the value overflowed
     if mem.timer.tima == 0 {
         mem.if_reg |= Interrupt::Timer as u8;

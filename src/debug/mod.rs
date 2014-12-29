@@ -1,3 +1,7 @@
+//! This module implements some very basic debugging tools useful for finding bugs in games and the
+//! emulator itself.
+//! Currently is main purpose is to print subroutine calls with some structure.
+
 use cpu::{Cpu, State};
 use mmu::Memory;
 use debug::symbols::{SymbolTable, build_symbol_table};

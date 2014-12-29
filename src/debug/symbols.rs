@@ -5,24 +5,26 @@ use std::num::from_str_radix;
 
 pub type SymbolTable = HashMap<(u8, u16), String>;
 
-/// Build a hash map that maps the addresses and bank numbers to label names    
+/// Build a hash map that maps the addresses and bank numbers to label names
 pub fn build_symbol_table(input: &str) -> SymbolTable {
     let mut table = HashMap::new();
-    
+
     for line in input.lines() {
         let line = line.trim_left();
         if line.len() == 0 || line.starts_with(";") {
             continue;
         }
 
-        // FIXME(minor): Add some error handling here
+        // FIXME(minor): Decide on how to handle errors here, and handle more advanced sym files
+        //      - Option 1: If we get an error then just panic or return an option
+        //      - Option 2: Parse as much as we can and skip lines that contain an error
         let split_line: Vec<_> = line.split(' ').collect();
         let keys: Vec<_> = split_line[0].split(':').collect();
-        
+
         let key = (from_str_radix(keys[0], 16).unwrap(), from_str_radix(keys[1], 16).unwrap());
         let value = split_line[1].trim_left().into_string();
-        
-        table.insert(key, value);        
+
+        table.insert(key, value);
     }
 
     table
