@@ -21,7 +21,7 @@ mod cpu_tests {
 
     fn instruction_runner(cpu: &mut Cpu, mem: &mut Memory, times: uint) -> uint {
         let mut num_cycles = 0;
-        for _ in range(0, times) {
+        for _ in (0..times) {
             // Print out the instructions for debugging
             println!("{:04X}:\t\t{}", cpu.pc, disasm::disasm(cpu.pc, mem));
             num_cycles += cpu.step(mem) as uint;
@@ -564,7 +564,7 @@ mod cpu_tests {
 
         m.sb(c.pc + 0, 0xC9); // ret
         let cycles = instruction_runner(&mut *c, &mut *m, 1);
-        assert_eq!(c.pc, 0xE003)
+        assert_eq!(c.pc, 0xE003);
         assert_eq!(c.sp, 0xE200);
         assert_eq!(cycles, 16);
     }

@@ -1475,4 +1475,4 @@ fn daa(cpu: &mut Cpu) {
     cpu.af().set(DAA_TABLE[index as uint]);
 }
 
-include!("cpu_tests.rs")
+include!("cpu_tests.rs");

@@ -191,7 +191,6 @@ impl Cpu {
 
 // The 8-bit registers in the main register set can be joint to form 16-bit registers.
 macro_rules! join_regs { (($r1: ident, $r2: ident) as $name: ident) => (
-    #[allow(dead_code)]
     impl Cpu {
         pub fn $name(&mut self) -> JointReg {
             JointReg {
@@ -202,10 +201,10 @@ macro_rules! join_regs { (($r1: ident, $r2: ident) as $name: ident) => (
     }
 ) }
 
-join_regs!((b, c) as bc)
-join_regs!((d, e) as de)
-join_regs!((h, l) as hl)
-join_regs!((a, f) as af)
+join_regs!((b, c) as bc);
+join_regs!((d, e) as de);
+join_regs!((h, l) as hl);
+join_regs!((a, f) as af);
 
 pub struct JointReg<'a> {
     high: &'a mut u8,

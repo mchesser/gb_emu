@@ -250,7 +250,7 @@ impl Gpu {
         tile_id = self.adjust_tile_id(tile_id);
 
         let mut draw_offset = self.ly as uint * WIDTH * 4;
-        for _ in range(0, WIDTH) {
+        for _ in (0..WIDTH) {
             // Not sure why the tile_x needs to be reversed here.
             let color_id = self.tile_lookup(tile_id, 7 - tile_x, tile_y);
             let color = palette_lookup(self.bgp, color_id);
@@ -287,7 +287,7 @@ impl Gpu {
         tile_id = self.adjust_tile_id(tile_id);
 
         let mut draw_offset = self.ly as uint * WIDTH * 4;
-        for _ in range(0, WIDTH) {
+        for _ in (0..WIDTH) {
             // Not sure why the tile_x needs to be reversed here.
             let color_id = self.tile_lookup(tile_id, 7 - tile_x, tile_y);
             let color = palette_lookup(self.bgp, color_id);
@@ -348,7 +348,7 @@ impl Gpu {
             let tile_y = if flags & 0x40 == 0 { line_num - dy } else { 7 - (line_num - dy) } as u8;
             assert!(tile_y < 8);
 
-            for x in range(0, 8) {
+            for x in (0..8) {
                 if dx + x >= 0 && (dx as int + x as int) < WIDTH as int {
                     // Flip x coordinate if bit 5 is set
                     let tile_x = if flags & 0x20 == 0 { 7 - x } else { x } as u8;
@@ -440,17 +440,14 @@ pub fn step(mem: &mut Memory, ticks: u8) {
 
 /// Write a pixel to an offset in the frame buffer
 fn write_pixel(framebuffer: &mut [u8], offset: uint, color: Color) {
-    framebuffer[offset + 0] = color[0];
-    framebuffer[offset + 1] = color[1];
-    framebuffer[offset + 2] = color[2];
-    framebuffer[offset + 3] = color[3];
+    framebuffer[offset..(offset + 4)] = &color;
 }
 
 /// Perform a DMA transfer from memory to the sprite access table
 pub fn oam_dma_transfer(mem: &mut Memory) {
     let start_addr = mem.gpu.dma as u16 << 8;
 
-    for i in range(0, OAM_SIZE) {
+    for i in (0..OAM_SIZE) {
         mem.gpu.oam[i] = mem.lb(start_addr + i as u16);
     }
 }
