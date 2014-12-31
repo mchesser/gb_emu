@@ -440,7 +440,10 @@ pub fn step(mem: &mut Memory, ticks: u8) {
 
 /// Write a pixel to an offset in the frame buffer
 fn write_pixel(framebuffer: &mut [u8], offset: uint, color: Color) {
-    framebuffer[offset..(offset + 4)] = &color;
+    framebuffer[offset + 0] = color[0];
+    framebuffer[offset + 1] = color[1];
+    framebuffer[offset + 2] = color[2];
+    framebuffer[offset + 3] = color[3];
 }
 
 /// Perform a DMA transfer from memory to the sprite access table

@@ -1,5 +1,3 @@
-use std::slice::bytes::copy_memory;
-
 use mmu::Memory;
 use cpu::Cpu;
 use graphics;
@@ -29,11 +27,8 @@ impl<F> Emulator<F> where F: FnMut(&mut Cpu, &mut Memory) {
         }
     }
 
-    /// Load a cart into the emulator rom
     pub fn load_cart(&mut self, data: &[u8]) {
-        for (i, chunk) in data.chunks(0x4000).enumerate() {
-            copy_memory(&mut self.mem.rom[i], chunk);
-        }
+        self.mem.cart.load(data);
     }
 
     /// Initialise the emulator with the expected startup values
@@ -42,7 +37,7 @@ impl<F> Emulator<F> where F: FnMut(&mut Cpu, &mut Memory) {
         self.mem.start_up(DeviceMode::GameBoy);
     }
 
-    /// Run the emulator for one frame. To emulate the gameboy system realistically this should be
+    /// Run the emulator for one frame. To emulate the Game Boy system realistically this should be
     /// called at 60 Hz
     pub fn frame(&mut self) {
         if self.mem.crashed | self.cpu.crashed {

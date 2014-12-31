@@ -77,12 +77,12 @@ fn check_interrupts(logger: &mut Logger, cpu: &Cpu, mem: &Memory) {
 fn check_branch_instructions(logger: &mut Logger, cpu: &Cpu, mem: &Memory) {
     match branch_decoder(cpu.pc, mem, cpu.f) {
         Branch::AbsoluteJump(addr) => {
-            let bank_num = if addr < 0x4000 { 0 } else { mem.rom_bank as u8 };
+            let bank_num = if addr < 0x4000 { 0 } else { mem.cart.rom_bank as u8 };
             print_jump(logger, (bank_num, addr));
         }
 
         Branch::Call(addr) => {
-            let bank_num = if addr < 0x4000 { 0 } else { mem.rom_bank as u8 };
+            let bank_num = if addr < 0x4000 { 0 } else { mem.cart.rom_bank as u8 };
             print_call(logger, (bank_num, addr));
             logger.call_stack.push(cpu.pc + 3);
             hide_check(logger, (bank_num, addr));

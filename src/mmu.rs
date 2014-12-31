@@ -1,28 +1,10 @@
 use emulator::DeviceMode;
+use cart::Cartridge;
 use graphics;
 use graphics::Gpu;
 use sound::SoundController;
 use joypad::Joypad;
 use timer::Timer;
-
-use mmu::MemoryBankController::{NoMbc, Mbc1, Mbc2, Mbc3};
-
-#[deriving(Show, Copy, PartialEq)]
-pub enum MemoryBankController {
-    NoMbc, // No memory bank controller (32Kbyte ROM only)
-    Mbc1,  // Max 2MBbyte ROM and/or 32KByte RAM
-    Mbc2,  // Max 256Kbyte ROM and 512x4 bits RAM
-    Mbc3,  // Max 2MByte ROM and/or 32KByte RAM and Timer
-
-    // FIXME(minor): add support for Huc1 controller
-    // Huc1,  // MBC with Infrared Controller
-}
-
-#[deriving(Copy, PartialEq)]
-pub enum BankingMode {
-    Rom,
-    Ram,
-}
 
 /// The GB/C memory mapper
 pub struct Memory {
@@ -36,22 +18,8 @@ pub struct Memory {
     /// Interrupt flags register (mapped to: 0xFF0F)
     pub if_reg: u8,
 
-    /// The cart memory bank controller
-    pub mbc: MemoryBankController,
-    /// The current banking mode of the system
-    pub banking_mode: BankingMode,
-
-    /// Rom banks (maximum of 128 banks = 2MB, mapped to: 0x0000-0x7FFFF)
-    pub rom: [[u8, ..0x4000], ..128],
-    /// The currently mapped rom bank (bank 0 is always mapped)
-    pub rom_bank: uint,
-
-    /// External ram banks (maximum of 4 banks = 32KB, mapped to: 0xA000-0xBFFF)
-    pub external_ram: [[u8, ..0x2000], ..4],
-    /// The the currently mapped external ram bank (bank 0 is always mapped)
-    pub ram_bank: uint,
-    // Indicates if the ram has been enabled
-    pub ram_enabled: bool,
+    // The inserted cartridge
+    pub cart: Cartridge,
 
     /// Working ram (mapped to: 0xC000-0xDFFF, shadow: 0xE000-0xFDFF)
     pub working_ram: [u8, ..0x2000],
@@ -85,15 +53,7 @@ impl Memory {
             ie_reg: 0,
             if_reg: 0,
 
-            mbc: Mbc3,
-            banking_mode: BankingMode::Rom,
-
-            rom: [[0, ..0x4000], ..128],
-            rom_bank: 1,
-
-            external_ram: [[0, ..0x2000], ..4],
-            ram_bank: 1,
-            ram_enabled: false,
+            cart: Cartridge::new(),
 
             working_ram: [0, ..0x2000],
             wram_bank: 0,
@@ -141,7 +101,7 @@ impl Memory {
         self.sb(0xFF4B, 0x00); // WX   - Set window x position
         self.sb(0xFFFF, 0x00); // IE   - Disable all interrupts
 
-        // Handle mode specific settings
+        // Handle device specific settings
         match mode {
             DeviceMode::SuperGameBoy => {
                 self.sb(0xFF26, 0xF0); // NR52 - More sound settings
@@ -154,39 +114,12 @@ impl Memory {
 
             DeviceMode::GameBoy => {},
         }
-
-        // Set get the type of memory bank controller from the cart
-        let mbc_type = self.rom[0][0x0147];
-        // 00h  ROM ONLY                 13h  MBC3+RAM+BATTERY
-        // 01h  MBC1                     15h  MBC4
-        // 02h  MBC1+RAM                 16h  MBC4+RAM
-        // 03h  MBC1+RAM+BATTERY         17h  MBC4+RAM+BATTERY
-        // 05h  MBC2                     19h  MBC5
-        // 06h  MBC2+BATTERY             1Ah  MBC5+RAM
-        // 08h  ROM+RAM                  1Bh  MBC5+RAM+BATTERY
-        // 09h  ROM+RAM+BATTERY          1Ch  MBC5+RUMBLE
-        // 0Bh  MMM01                    1Dh  MBC5+RUMBLE+RAM
-        // 0Ch  MMM01+RAM                1Eh  MBC5+RUMBLE+RAM+BATTERY
-        // 0Dh  MMM01+RAM+BATTERY        FCh  POCKET CAMERA
-        // 0Fh  MBC3+TIMER+BATTERY       FDh  BANDAI TAMA5
-        // 10h  MBC3+TIMER+RAM+BATTERY   FEh  HuC3
-        // 11h  MBC3                     FFh  HuC1+RAM+BATTERY
-        // 12h  MBC3+RAM
-        match mbc_type {
-            0x00 | 0x08 | 0x09 => { self.mbc = NoMbc; },
-            0x01 | 0x02 | 0x03 => { self.mbc = Mbc1; },
-            0x05 | 0x06 => { self.mbc = Mbc2; },
-            0x11 | 0x12 | 0x0F | 0x10 | 0x13 => { self.mbc = Mbc3; }
-
-            x => { panic!("Unsupported cartridge: {:X}", x); }
-        }
-        println!("{}", self.mbc);
     }
 
     /// Handle invalid memory accesses
     fn invalid_memory(&mut self, addr: u16) {
         self.crashed = true;
-        println!("Invalid memory access to address: 0x{:4X}", addr);
+        println!("Invalid write to address: 0x{:4X}", addr);
     }
 
     /// Load a byte from memory
@@ -194,18 +127,14 @@ impl Memory {
         if self.crashed { return 0; };
 
         // Map memory reads to their correct bytes. (See: http://problemkaputt.de/pandocs.htm)
-        // FIXME(minor): should probably handle invalid memory accesses depending on the memory bank
-        // controller more carefully.
         match addr {
-            0x0000 ... 0x3FFF => self.rom[0][(addr & 0x3FFF) as uint],
-            0x4000 ... 0x7FFF => self.rom[self.rom_bank][(addr & 0x3FFF) as uint],
+            0x0000 ... 0x7FFF | 0xA000 ... 0xBFFF => self.cart.read(addr),
             0x8000 ... 0x9FFF => self.gpu.vram()[(addr & 0x1FFF) as uint],
-            0xA000 ... 0xBFFF => self.external_ram[self.ram_bank][(addr & 0x1FFF) as uint],
             // NOTE: Check this mapping when adding CGB support
             0xC000 ... 0xDFFF => self.working_ram[(addr & 0x1FFF) as uint],
             0xE000 ... 0xFDFF => self.working_ram[(addr & 0x1FFF) as uint],
             0xFE00 ... 0xFE9F => self.gpu.oam[(addr & 0x00FF) as uint],
-            0xFEA0 ... 0xFEFF => 0,
+            0xFEA0 ... 0xFEFF => 0xDE,
             0xFF00 ... 0xFF7F => self.read_io(addr),
             0xFF80 ... 0xFFFE => self.fast_ram[(addr & 0x7F) as uint],
             0xFFFF            => self.ie_reg,
@@ -298,77 +227,9 @@ impl Memory {
         if self.crashed { return; }
 
         // Map memory writes to their correct bytes. (See: http://problemkaputt.de/pandocs.htm)
-        // Writes may have different effects depending on the active memory bank controller
         match addr {
-            // Set RAM and RTC enabled/disabled
-            0x0000 ... 0x1FFF => match self.mbc {
-                NoMbc => {},
-                Mbc1 => self.ram_enabled = value & 0xF == 0x0A,
-                Mbc2 => {
-                    if addr & 0x0100 == 0 {
-                        self.ram_enabled = !self.ram_enabled;
-                    }
-                },
-                Mbc3 => {
-                    self.ram_enabled = value == 0x0A;
-
-                    // FIXME(major): uncomment the following line when the real-time-clock is added.
-                    // self.rtc.enabled = value == 0x0A;
-                },
-            },
-
-            // Set ROM bank number
-            0x2000 ... 0x3FFF => match self.mbc {
-                NoMbc => {},
-                Mbc1 => {
-                    let high_bits = self.rom_bank as u8 & 0x60;
-                    self.rom_bank =
-                        if (value & 0x1F) == 0 { (high_bits | 1) as uint }
-                        else { (high_bits | (value & 0x1F)) as uint };
-                },
-                Mbc2 => self.rom_bank = (value & 0x0F) as uint,
-                Mbc3 => {
-                    self.rom_bank =
-                        if value == 0x00 { 1 }
-                        else { (value & 0x7F) as uint };
-                },
-            },
-
-            // Set RAM bank number, upper bits of ROM bank number or real-time-clock register select
-            0x4000 ... 0x5FFF => match self.mbc {
-                NoMbc | Mbc2 => {}
-                Mbc1 => {
-                    let bits = value & 0x3;
-                    if self.banking_mode == BankingMode::Rom {
-                        self.rom_bank = (bits << 5 | (self.rom_bank as u8 & 0x1F)) as uint;
-                    }
-                    else {
-                        self.ram_bank = bits as uint;
-                    }
-                },
-                Mbc3 => {
-                    // FIXME(major): handle real time clock here
-                    self.ram_bank = (value & 0x3) as uint;
-                },
-            },
-
-            // Set ROM/RAM mode select or latch clock data
-            0x6000 ... 0x7FFF => match self.mbc {
-                NoMbc | Mbc2 => {},
-                Mbc1 => {
-                    self.banking_mode =
-                        if value & 0x1 == 0 { BankingMode::Rom }
-                        else { BankingMode::Ram };
-                },
-                Mbc3 => {
-                    // FIXME(major): Handle real-time-clock latch clock data
-                },
-            },
-
+            0x0000 ... 0x7FFF | 0xA000 ... 0xBFFF => self.cart.write(addr, value),
             0x8000 ... 0x9FFF => self.gpu.vram_mut()[(addr & 0x1FFF) as uint] = value,
-            // FIXME(minor): We don't actually check if the ram has been enabled berfore writing
-            // to it
-            0xA000 ... 0xBFFF => self.external_ram[self.ram_bank][(addr & 0x1FFF) as uint] = value,
             // NOTE: Check this mapping when adding CGB support
             0xC000 ... 0xDFFF => self.working_ram[(addr & 0x1FFF) as uint] = value,
             0xE000 ... 0xFDFF => self.working_ram[(addr & 0x1FFF) as uint] = value,
