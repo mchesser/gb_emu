@@ -1,12 +1,22 @@
 use mmu::Memory;
 use cpu::Interrupt;
 
-pub const HEIGHT: uint = 144;
 pub const WIDTH: uint = 160;
+pub const HEIGHT: uint = 144;
 const VBLANK_END: u8 = 153;
 
 const VRAM_SIZE: uint = 0x2000;
 const OAM_SIZE: uint = 0xA0;
+
+/// The width (in pixels) of the BG map
+const MAP_WIDTH: uint = 256;
+/// The height (int pixels) of the BG map
+const MAP_HEIGHT: uint = 256;
+
+/// The size of a tile (in pixels)
+const TILE_SIZE: uint = 8;
+
+const BYTES_PER_PIXEL: uint = 4;
 
 pub mod timings {
     pub const OAM_READ: u32 = 80;
@@ -121,7 +131,7 @@ impl Gpu {
     pub fn new() -> Gpu {
         Gpu {
             mode_clock: 0,
-            framebuffer: [0, ..HEIGHT * WIDTH * 4],
+            framebuffer: [0, ..HEIGHT * WIDTH * BYTES_PER_PIXEL],
             ready_flag: false,
             vram: [[0, ..VRAM_SIZE], ..2],
             vram_bank: 0,
@@ -156,7 +166,7 @@ impl Gpu {
         self.lcdc & 0b1000_0000 != 0
     }
 
-    fn winmap_base_offset(&self) -> u16 {
+    fn winmap_base_offset(&self) -> uint {
         if self.lcdc & 0b0100_0000 == 0 { 0x1800 } else { 0x1C00 }
     }
 
@@ -165,14 +175,14 @@ impl Gpu {
     }
 
     /// Adjust a tile id based on the currently selected tile set
-    fn adjust_tile_id(&self, tile_id: uint) -> uint {
+    fn adjust_tile_id(&self, tile_id: u8) -> uint {
         if self.lcdc & 0b0001_0000 == 0 {
-            if tile_id < 128 { return tile_id + 256 }
+            if tile_id < 128 { return tile_id as uint + 256 }
         }
-        tile_id
+        tile_id as uint
     }
 
-    fn bgmap_base_offset(&self) -> u16 {
+    fn bgmap_base_offset(&self) -> uint {
         if self.lcdc & 0b0000_1000 == 0 { 0x1800 } else { 0x1C00 }
     }
 
@@ -225,6 +235,7 @@ impl Gpu {
     }
 
     pub fn render_scanline(&mut self) {
+        // TODO: Handle pixel priorities
         if self.lcd_on() {
             if self.bg_display_on() {
                 self.render_bg_scanline();
@@ -239,33 +250,30 @@ impl Gpu {
     }
 
     fn render_bg_scanline(&mut self) {
-        // FIXME(major): The background does not wrap
-        let map_base = self.bgmap_base_offset() + ((self.ly + self.scy) / 8) as u16 * 32;
-        let mut map_offset = (self.scx / 8) as u16;
+        let map_base = self.bgmap_base_offset() + (self.ly + self.scy) as uint / TILE_SIZE *
+            (MAP_WIDTH / TILE_SIZE);
+        let mut current_tile = self.get_bgmap_offset(0) + map_base;
+        let mut tile_id = self.adjust_tile_id(self.vram()[current_tile]);
 
-        let tile_y = (self.ly + self.scy) % 8;
-        let mut tile_x = self.scx % 8;
+        let tile_y = (self.ly + self.scy) % TILE_SIZE as u8;
+        let mut tile_x = self.scx % TILE_SIZE as u8;
 
-        let mut tile_id = self.vram()[(map_base + map_offset) as uint] as uint;
-        tile_id = self.adjust_tile_id(tile_id);
+        let mut draw_offset = self.ly as uint * WIDTH * BYTES_PER_PIXEL;
+        for x in (0..WIDTH) {
+            // Move to the next tile if we have reached the end of the current tile
+            if tile_x >= TILE_SIZE as u8 {
+                tile_x = 0;
+                current_tile = self.get_bgmap_offset(x) + map_base;
+                tile_id = self.adjust_tile_id(self.vram()[current_tile]);
+            }
 
-        let mut draw_offset = self.ly as uint * WIDTH * 4;
-        for _ in (0..WIDTH) {
             // Not sure why the tile_x needs to be reversed here.
             let color_id = self.tile_lookup(tile_id, 7 - tile_x, tile_y);
             let color = palette_lookup(self.bgp, color_id);
 
-            write_pixel(&mut self.framebuffer, draw_offset as uint, color);
-            draw_offset += 4;
-
+            write_pixel(&mut self.framebuffer, draw_offset, color);
+            draw_offset += BYTES_PER_PIXEL;
             tile_x += 1;
-            // Move to the next tile if we have reached the end of this tile
-            if tile_x >= 8 {
-                tile_x = 0;
-                map_offset += 1;
-                tile_id = self.vram()[(map_base + map_offset) as uint] as uint;
-                tile_id = self.adjust_tile_id(tile_id);
-            }
         }
     }
 
@@ -276,23 +284,22 @@ impl Gpu {
             return
         }
 
-        let map_base = self.winmap_base_offset() + ((self.ly - self.wy) / 8) as u16 * 32;
-        let mut map_offset = 0;
+        let map_base = self.winmap_base_offset() + ((self.ly - self.wy) as uint / TILE_SIZE) *
+            (MAP_WIDTH / TILE_SIZE);
+        let mut current_tile = map_base;
+        let mut tile_id = self.adjust_tile_id(self.vram()[current_tile]);
 
-        let tile_y = (self.ly - self.wy) % 8;
+        let tile_y = (self.ly - self.wy) % TILE_SIZE as u8;
         // FIXME(major): correctly handle window wrapping
         let mut tile_x = self.wx - 7;
 
-        let mut tile_id = self.vram()[(map_base + map_offset) as uint] as uint;
-        tile_id = self.adjust_tile_id(tile_id);
-
-        let mut draw_offset = self.ly as uint * WIDTH * 4;
+        let mut draw_offset = self.ly as uint * WIDTH * BYTES_PER_PIXEL;
         for _ in (0..WIDTH) {
             // Not sure why the tile_x needs to be reversed here.
             let color_id = self.tile_lookup(tile_id, 7 - tile_x, tile_y);
             let color = palette_lookup(self.bgp, color_id);
 
-            write_pixel(&mut self.framebuffer, draw_offset as uint, color);
+            write_pixel(&mut self.framebuffer, draw_offset, color);
             draw_offset += 4;
 
             tile_x += 1;
@@ -300,9 +307,8 @@ impl Gpu {
             // FIXME(major): correctly handle window wrapping
             if tile_x >= 8 {
                 tile_x = 0;
-                map_offset += 1;
-                tile_id = self.vram()[(map_base + map_offset) as uint] as uint;
-                tile_id = self.adjust_tile_id(tile_id);
+                current_tile += 1;
+                tile_id = self.adjust_tile_id(self.vram()[current_tile]);
             }
         }
     }
@@ -311,50 +317,50 @@ impl Gpu {
         let sprite_height = self.get_sprite_height();
         let line_num = self.ly as int;
 
-        // TODO(major): Set priorities in GB mode
-        // TODO(major): Only allow 10 sprites per scanline in CGB mode
-        let mut _num_sprites = 0_i32;
-
         // FIXME(minor): Can we do this more efficiently?
+        let mut num_sprites = 0_i32;
         for sprite in self.oam.chunks(4) {
             // Read sprite attributes
-            let mut dy = sprite[0] as int - 16;
-            let dx = sprite[1] as int - 8;
-            let mut tile_id = sprite[2];
-            let flags = sprite[3];
+            let mut y_pos = sprite[0] as int - 16;
+            let x_pos = sprite[1] as int - 8;
 
             // Check if the sprite appears on this scanline
-            if dy > line_num || dy + sprite_height <= line_num || dx <= -8 || dx >= WIDTH as int {
-                continue
-            }
-            _num_sprites += 1;
+            if y_pos > line_num || y_pos + sprite_height <= line_num || x_pos <= -8 ||
+                x_pos >= WIDTH as int { continue }
 
+            num_sprites += 1;
+
+            let mut tile_id = sprite[2];
             // 8x16 sprites consist of two adjacent tiles, so adjust the tile id based on where we
             // are in the sprite
             if sprite_height == 16 {
                 tile_id &= 0xFE;
-                if self.ly as int - dy >= 8 {
+                if self.ly as int - y_pos >= 8 {
                     tile_id |= 1;
-                    dy += 8;
+                    y_pos += 8;
                 }
             }
-
-            let mut draw_offset = (line_num * WIDTH as int + dx as int) * 4;
+            let tile_id = tile_id as uint;
+            let flags = sprite[3];
             let palette = if flags & 0x10 == 0 { self.obp0 } else { self.obp1 };
+
+            // Note: The draw offset must be stored as a signed integer, as the sprite may start off
+            // the screen, but eventually is on the screen
+            let mut draw_offset = (line_num * WIDTH as int + x_pos) * BYTES_PER_PIXEL as int;
 
             // Get the y coordinate of the sprite. If bit 6 is set, the sprite is flipped so we take
             // the y offset from the bottom of the sprite.
-            // CHECKME: how are flipped 8x16 sprites handled
-            let tile_y = if flags & 0x40 == 0 { line_num - dy } else { 7 - (line_num - dy) } as u8;
-            assert!(tile_y < 8);
+            // CHECKME: how are flipped 8x16 sprites handled?
+            let tile_y = if flags & 0x40 == 0 { line_num - y_pos }
+                         else { 7 - (line_num - y_pos) } as u8;
 
-            for x in (0..8) {
-                if dx + x >= 0 && (dx as int + x as int) < WIDTH as int {
+            debug_assert!((tile_y as uint) < TILE_SIZE);
+
+            for dx in (0..(TILE_SIZE as int)) {
+                if x_pos + dx >= 0 && x_pos + dx < WIDTH as int {
                     // Flip x coordinate if bit 5 is set
-                    let tile_x = if flags & 0x20 == 0 { 7 - x } else { x } as u8;
-                    assert!(tile_x < 8);
-
-                    let color_id = self.tile_lookup(tile_id as uint, tile_x, tile_y);
+                    let tile_x = if flags & 0x20 == 0 { 7 - dx } else { dx } as u8;
+                    let color_id = self.tile_lookup(tile_id, tile_x, tile_y);
 
                     // Pixels in a sprite with a color id of 0 are transparent
                     if color_id != 0 {
@@ -362,10 +368,17 @@ impl Gpu {
                         write_pixel(&mut self.framebuffer, draw_offset as uint, color);
                     }
                 }
-                draw_offset += 4;
+                draw_offset += BYTES_PER_PIXEL as int;
             }
 
+            // Only 10 sprites may be drawn per scanline, so if this was the tenth sprite then exit
+            // Note: This follows the behavour for CGB, I'm not sure if this is correct for GB mode.
+            if num_sprites >= 10 { break }
         }
+    }
+
+    fn get_bgmap_offset(&self, x: uint) -> uint {
+        ((self.scx as uint + x) % MAP_WIDTH as uint) / (TILE_SIZE as uint)
     }
 
     /// Look up the color value of a pixel in a tile
