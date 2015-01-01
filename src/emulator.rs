@@ -55,12 +55,23 @@ impl<F> Emulator<F> where F: FnMut(&mut Cpu, &mut Memory) {
         self.cycles -= graphics::timings::FULL_FRAME as i32;
     }
 
-    pub fn framebuffer(&self) -> &[u8] {
-        &self.mem.gpu.framebuffer
+    /// Returns true if the framebuffer has been flipped since the last call to this function
+    pub fn poll_screen(&mut self) -> bool {
+        if self.mem.gpu.ready_flag {
+            self.mem.gpu.ready_flag = false;
+            true
+        }
+        else {
+            false
+        }
     }
 
-    pub fn framebuffer_mut(&mut self) -> &mut [u8] {
-        &mut self.mem.gpu.framebuffer
+    pub fn front_buffer(&self) -> &[u8] {
+        &self.mem.gpu.framebuffer[1 - self.mem.gpu.backbuffer]
+    }
+
+    pub fn front_buffer_mut(&mut self) -> &mut [u8] {
+        &mut self.mem.gpu.framebuffer[1 - self.mem.gpu.backbuffer]
     }
 }
 

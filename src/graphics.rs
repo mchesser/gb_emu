@@ -38,6 +38,11 @@ pub fn palette_lookup(palette: u8, color_id: uint) -> Color {
     GB_COLOR_TABLE[((palette >> (2 * color_id)) & 0x3) as uint]
 }
 
+/// Extract the color id of a pixel
+pub fn get_color_id(low: u8, high: u8, x: uint) -> uint {
+    ((((high >> x) & 1) << 1) | ((low >> x) & 1)) as uint
+}
+
 #[deriving(Copy)]
 pub enum Mode {
     HBlank   = 0,
@@ -73,7 +78,9 @@ pub struct Gpu {
 
     /// The GB display. Colours are defined in the order: (r, g, b, a). And the pixels are ordered
     /// by row ([ row1, row2, row3, ...]).
-    pub framebuffer: [u8, ..HEIGHT * WIDTH * 4],
+    pub framebuffer: [[u8, ..HEIGHT * WIDTH * 4], ..2],
+    pub backbuffer: uint,
+
     /// A flag that indicates that the framebuffer is ready to be read
     pub ready_flag: bool,
 
@@ -131,7 +138,9 @@ impl Gpu {
     pub fn new() -> Gpu {
         Gpu {
             mode_clock: 0,
-            framebuffer: [0, ..HEIGHT * WIDTH * BYTES_PER_PIXEL],
+            framebuffer: [[0, ..HEIGHT * WIDTH * BYTES_PER_PIXEL], ..2],
+            backbuffer: 0,
+
             ready_flag: false,
             vram: [[0, ..VRAM_SIZE], ..2],
             vram_bank: 0,
@@ -271,7 +280,7 @@ impl Gpu {
             let color_id = self.tile_lookup(tile_id, 7 - tile_x, tile_y);
             let color = palette_lookup(self.bgp, color_id);
 
-            write_pixel(&mut self.framebuffer, draw_offset, color);
+            write_pixel(&mut self.framebuffer[self.backbuffer], draw_offset, color);
             draw_offset += BYTES_PER_PIXEL;
             tile_x += 1;
         }
@@ -299,7 +308,7 @@ impl Gpu {
             let color_id = self.tile_lookup(tile_id, 7 - tile_x, tile_y);
             let color = palette_lookup(self.bgp, color_id);
 
-            write_pixel(&mut self.framebuffer, draw_offset, color);
+            write_pixel(&mut self.framebuffer[self.backbuffer], draw_offset, color);
             draw_offset += 4;
 
             tile_x += 1;
@@ -365,7 +374,8 @@ impl Gpu {
                     // Pixels in a sprite with a color id of 0 are transparent
                     if color_id != 0 {
                         let color = palette_lookup(palette, color_id);
-                        write_pixel(&mut self.framebuffer, draw_offset as uint, color);
+                        write_pixel(&mut self.framebuffer[self.backbuffer], draw_offset as uint,
+                            color);
                     }
                 }
                 draw_offset += BYTES_PER_PIXEL as int;
@@ -384,14 +394,16 @@ impl Gpu {
     /// Look up the color value of a pixel in a tile
     fn tile_lookup(&self, id: uint, x: u8, y: u8) -> uint {
         let tile_height = 8;
+        let index = id * tile_height * 2 + y as uint * 2;
 
-        let index = id as uint * tile_height * 2 + y as uint * 2;
+        // Colors stored in the 2bpp format are split over two bytes. The color's lower bit is
+        // stored in the first byte and the high bit is stored in the second byte.
+        get_color_id(self.vram()[index], self.vram()[index + 1], x as uint)
+    }
 
-        // A single pixel is stored over two bytes. The pixels lower bit is stored in the first byte
-        // and the high bit is stored in the second byte
-        let low = self.vram()[index];
-        let high = self.vram()[index + 1];
-        ((((high >> (x as uint)) & 1) << 1) | ((low >> (x as uint)) & 1)) as uint
+    fn flip_buffers(&mut self) {
+        self.ready_flag = true;
+        self.backbuffer = 1 - self.backbuffer;
     }
 }
 
@@ -422,7 +434,7 @@ pub fn step(mem: &mut Memory, ticks: u8) {
                 mem.gpu.ly += 1;
                 if mem.gpu.ly >= HEIGHT as u8 {
                     mem.gpu.set_mode(Mode::VBlank);
-                    mem.gpu.ready_flag = true;
+                    mem.gpu.flip_buffers();
                     mem.if_reg |= Interrupt::VBlank as u8;
                 }
                 else {
