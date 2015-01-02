@@ -2,7 +2,6 @@
 use std::slice::bytes::copy_memory;
 
 use cart::MemoryBankController::{NoMbc, Mbc1, Mbc2, Mbc3};
-
 #[deriving(Show, Copy, PartialEq)]
 pub enum MemoryBankController {
     NoMbc, // No memory bank controller (32Kbyte ROM only)
@@ -19,7 +18,11 @@ pub enum BankingMode {
     Ram,
 }
 
-#[allow(missing_copy_implementations)]
+pub trait SaveFile: Send {
+    fn load(&mut self, data: &mut [u8]);
+    fn save(&mut self, data: &[u8]);
+}
+
 pub struct Cartridge {
     mbc: MemoryBankController,
     selected_banking_mode: BankingMode,
@@ -30,11 +33,14 @@ pub struct Cartridge {
     pub rom_bank: uint,
 
     /// External ram banks (maximum of 4 banks = 32KB, mapped to: 0xA000-0xBFFF)
-    pub ram: [[u8, ..0x2000], ..4],
+    pub ram: [u8, ..(0x2000 * 4)],
     /// The the currently mapped external ram bank (bank 0 is always mapped)
     pub ram_bank: uint,
     // Indicates if the ram has been enabled
     pub ram_enabled: bool,
+
+    /// The save file attached to the cartridge
+    pub save_file: Option<Box<SaveFile>>,
 }
 
 impl Cartridge {
@@ -46,13 +52,21 @@ impl Cartridge {
             rom: [[0, ..0x4000], ..128],
             rom_bank: 1,
 
-            ram: [[0, ..0x2000], ..4],
-            ram_bank: 1,
+            ram: [0, ..(0x2000 * 4)],
+            ram_bank: 0,
             ram_enabled: false,
+
+            save_file: None,
         }
     }
 
-    pub fn load(&mut self, data: &[u8]) {
+    /// Convert the specified address into an index into the ram array, adjusting the index
+    /// according to the currently enabled ram bank
+    pub fn ram_index(&self, addr: u16) -> uint {
+        0x2000 * self.ram_bank + (addr & 0x1FFF) as uint
+    }
+
+    pub fn load(&mut self, data: &[u8], save_file: Option<Box<SaveFile>>) {
         for (i, chunk) in data.chunks(0x4000).enumerate() {
             copy_memory(&mut self.rom[i], chunk);
         }
@@ -84,6 +98,12 @@ impl Cartridge {
             x => { panic!("Unsupported cartridge: {:X}", x); }
         }
         println!("{}", self.mbc);
+
+        // Load the save file if there is one
+        self.save_file = save_file;
+        if let Some(ref mut save) = self.save_file {
+            save.load(&mut self.ram);
+        }
     }
 
     pub fn read(&self, addr: u16) -> u8 {
@@ -92,7 +112,7 @@ impl Cartridge {
         match addr {
             0x0000 ... 0x3FFF => self.rom[0][(addr & 0x3FFF) as uint],
             0x4000 ... 0x7FFF => self.rom[self.rom_bank][(addr & 0x3FFF) as uint],
-            0xA000 ... 0xBFFF => self.ram[self.ram_bank][(addr & 0x1FFF) as uint],
+            0xA000 ... 0xBFFF => self.ram[self.ram_index(addr)],
 
             _ => unreachable!(),
         }
@@ -165,9 +185,17 @@ impl Cartridge {
             },
 
             // Write to external ram
-            0xA000 ... 0xBFFF => self.ram[self.ram_bank][(addr & 0x1FFF) as uint] = value,
+            0xA000 ... 0xBFFF => self.ram[self.ram_index(addr)] = value,
 
             _ => unreachable!(),
+        }
+    }
+}
+
+impl Drop for Cartridge {
+    fn drop(&mut self) {
+        if let Some(ref mut save_file) = self.save_file {
+            save_file.save(&self.ram);
         }
     }
 }

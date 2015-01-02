@@ -1,4 +1,5 @@
 use mmu::Memory;
+use cart::SaveFile;
 use cpu::Cpu;
 use graphics;
 use timer;
@@ -27,8 +28,8 @@ impl<F> Emulator<F> where F: FnMut(&mut Cpu, &mut Memory) {
         }
     }
 
-    pub fn load_cart(&mut self, data: &[u8]) {
-        self.mem.cart.load(data);
+    pub fn load_cart(&mut self, data: &[u8], save_file: Option<Box<SaveFile>>) {
+        self.mem.cart.load(data, save_file);
     }
 
     /// Initialise the emulator with the expected startup values
