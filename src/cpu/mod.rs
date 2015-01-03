@@ -141,44 +141,48 @@ impl Cpu {
     }
 
     /// Enables CPU interrupts
-    fn enable_interrupts(&mut self, _mem: &mut Memory) {
+    pub fn enable_interrupts(&mut self, _mem: &mut Memory) {
         self.ime = 1;
     }
 
     /// Disables CPU interrupts
-    fn disable_interrupts(&mut self, _mem: &mut Memory) {
+    pub fn disable_interrupts(&mut self, _mem: &mut Memory) {
         self.ime = 0;
     }
 
     /// Jumps to a location
-    fn jump(&mut self, addr: u16) {
+    pub fn jump(&mut self, addr: u16) {
         self.pc = addr;
     }
 
-    fn call(&mut self, mem: &mut Memory, addr: u16) {
+    pub fn push16(&mut self, mem: &mut Memory, val: u16) {
+        self.sp -= 2;
+        mem.sw(self.sp, val);
+    }
+
+    pub fn pop16(&mut self, mem: &mut Memory) -> u16 {
+        self.sp += 2;
+        mem.lw(self.sp - 2)
+    }
+
+    pub fn call(&mut self, mem: &mut Memory, addr: u16) {
         self.sp -= 2;
         mem.sw(self.sp, self.pc);
         self.pc = addr;
     }
 
-    fn ret(&mut self, mem: &mut Memory) {
+    pub fn ret(&mut self, mem: &mut Memory) {
         self.pc = mem.lw(self.sp);
         self.sp += 2;
     }
 
-    /// Handle instructions corresponding to invalid opcodes
-    fn invalid_inst(&mut self, _opcode: u8) -> u8 {
-        self.crashed = true;
-        0
-    }
-
     /// Halt the cpu
-    fn halt(&mut self) {
+    pub fn halt(&mut self) {
         self.state = State::Halted;
     }
 
     /// Stop the cpu
-    fn stop(&mut self) {
+    pub fn stop(&mut self) {
         self.state = State::Stopped;
     }
 
@@ -186,6 +190,12 @@ impl Cpu {
     pub fn bump(&mut self) -> u16 {
         self.pc += 1;
         self.pc - 1
+    }
+
+    /// Handle instructions corresponding to invalid opcodes
+    fn invalid_inst(&mut self, _opcode: u8) -> u8 {
+        self.crashed = true;
+        0
     }
 }
 

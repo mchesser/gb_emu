@@ -109,15 +109,13 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
     }) }
     // PUSH qq
     macro_rules! push_qq { ($qq: ident) => ({
-        mem.sb(cpu.sp-1, *cpu.$qq().high);
-        mem.sb(cpu.sp-2, *cpu.$qq().low);
-        cpu.sp -= 2;
+        let val = cpu.$qq().get();
+        cpu.push16(mem, val);
     }) }
     // POP qq
     macro_rules! pop_qq { ($qq: ident) => ({
-        *cpu.$qq().high = mem.lb(cpu.sp+1);
-        *cpu.$qq().low = mem.lb(cpu.sp);
-        cpu.sp += 2;
+        let val = cpu.pop16(mem);
+        cpu.$qq().set(val);
     }) }
     // POP af
     macro_rules! pop_af { () => ({
