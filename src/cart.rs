@@ -2,7 +2,7 @@
 use std::slice::bytes::copy_memory;
 
 use cart::MemoryBankController::{NoMbc, Mbc1, Mbc2, Mbc3};
-#[deriving(Show, Copy, PartialEq)]
+#[derive(Show, Copy, PartialEq)]
 pub enum MemoryBankController {
     NoMbc, // No memory bank controller (32Kbyte ROM only)
     Mbc1,  // Max 2MBbyte ROM and/or 32KByte RAM
@@ -12,7 +12,7 @@ pub enum MemoryBankController {
     // Huc1,  // MBC with Infrared Controller
 }
 
-#[deriving(Copy, PartialEq)]
+#[derive(Copy, PartialEq)]
 pub enum BankingMode {
     Rom,
     Ram,
@@ -28,12 +28,12 @@ pub struct Cartridge {
     selected_banking_mode: BankingMode,
 
     /// Rom banks (maximum of 128 banks = 2MB, mapped to: 0x0000-0x7FFFF)
-    pub rom: [[u8, ..0x4000], ..128],
+    pub rom: [[u8; 0x4000]; 128],
     /// The currently mapped rom bank (bank 0 is always mapped)
     pub rom_bank: uint,
 
     /// External ram banks (maximum of 4 banks = 32KB, mapped to: 0xA000-0xBFFF)
-    pub ram: [u8, ..(0x2000 * 4)],
+    pub ram: [u8; 0x2000 * 4],
     /// The the currently mapped external ram bank (bank 0 is always mapped)
     pub ram_bank: uint,
     // Indicates if the ram has been enabled
@@ -49,10 +49,10 @@ impl Cartridge {
             mbc: NoMbc,
             selected_banking_mode: BankingMode::Rom,
 
-            rom: [[0, ..0x4000], ..128],
+            rom: [[0; 0x4000]; 128],
             rom_bank: 1,
 
-            ram: [0, ..(0x2000 * 4)],
+            ram: [0; 0x2000 * 4],
             ram_bank: 0,
             ram_enabled: false,
 

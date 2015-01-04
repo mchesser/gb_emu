@@ -28,7 +28,7 @@ pub struct SoundController {
     pub nr32: u8,
     pub nr33: u8,
     pub nr34: u8,
-    pub wave_pattern_ram: [u8,..32],
+    pub wave_pattern_ram: [u8; 32],
 
     pub nr41: u8,
     pub nr42: u8,
@@ -59,7 +59,7 @@ impl SoundController {
             nr32: 0,
             nr33: 0,
             nr34: 0,
-            wave_pattern_ram: [0, ..32],
+            wave_pattern_ram: [0; 32],
 
             nr41: 0,
             nr42: 0,

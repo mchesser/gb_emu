@@ -27,7 +27,7 @@ pub mod timings {
     pub const FULL_FRAME: u32 = (OAM_READ + VRAM_READ + HBLANK) * 144 + VBLANK * 10;
 }
 
-pub type Color = [u8, ..4];
+pub type Color = [u8; 4];
 const GB_COLOR_TABLE: &'static [Color] = &[
     [0xFF, 0xFF, 0xFF, 0xFF], // 0% on (white)
     [0xC0, 0xC0, 0xC0, 0xFF], // 33% on (light gray)
@@ -43,7 +43,7 @@ pub fn get_color_id(low: u8, high: u8, x: uint) -> uint {
     ((((high >> x) & 1) << 1) | ((low >> x) & 1)) as uint
 }
 
-#[deriving(Copy)]
+#[derive(Copy)]
 pub enum Mode {
     HBlank   = 0,
     VBlank   = 1,
@@ -78,19 +78,19 @@ pub struct Gpu {
 
     /// The GB display. Colours are defined in the order: (r, g, b, a). And the pixels are ordered
     /// by row ([ row1, row2, row3, ...]).
-    pub framebuffer: [[u8, ..HEIGHT * WIDTH * 4], ..2],
+    pub framebuffer: [[u8; HEIGHT * WIDTH * 4]; 2],
     pub backbuffer: uint,
 
     /// A flag that indicates that the framebuffer is ready to be read
     pub ready_flag: bool,
 
     /// The GPU vram (mapped to: 0x8000-0x9FFF)
-    pub vram: [[u8, ..VRAM_SIZE], ..2],
+    pub vram: [[u8; VRAM_SIZE]; 2],
     /// The active VRAM bank. CGB only (mapped to: 0xFF4F)
     pub vram_bank: u8,
 
     /// The GB sprite access table (OAM) (mapped to: [0xFE00-0xFF9F])
-    pub oam: [u8, ..OAM_SIZE],
+    pub oam: [u8; OAM_SIZE],
 
     /// LCD Control Register (mapped to: 0xFF40)
     pub lcdc: u8,
@@ -138,13 +138,13 @@ impl Gpu {
     pub fn new() -> Gpu {
         Gpu {
             mode_clock: 0,
-            framebuffer: [[0, ..HEIGHT * WIDTH * BYTES_PER_PIXEL], ..2],
+            framebuffer: [[0; HEIGHT * WIDTH * BYTES_PER_PIXEL]; 2],
             backbuffer: 0,
 
             ready_flag: false,
-            vram: [[0, ..VRAM_SIZE], ..2],
+            vram: [[0; VRAM_SIZE]; 2],
             vram_bank: 0,
-            oam: [0, ..OAM_SIZE],
+            oam: [0; OAM_SIZE],
             lcdc: 0,
             stat: LcdStatRegister::new(),
             scy: 0,
@@ -473,7 +473,7 @@ fn write_pixel(framebuffer: &mut [u8], offset: uint, color: Color) {
 
 /// Perform a DMA transfer from memory to the sprite access table
 pub fn oam_dma_transfer(mem: &mut Memory) {
-    let start_addr = mem.gpu.dma as u16 << 8;
+    let start_addr = (mem.gpu.dma as u16) << 8;
 
     for i in (0..OAM_SIZE) {
         mem.gpu.oam[i] = mem.lb(start_addr + i as u16);

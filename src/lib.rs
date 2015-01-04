@@ -1,4 +1,4 @@
-#![feature(macro_rules, unboxed_closures)]
+#![feature(slicing_syntax, macro_rules, unboxed_closures)]
 
 pub mod emulator;
 pub mod cpu;

@@ -4,7 +4,7 @@ use cpu::Cpu;
 use graphics;
 use timer;
 
-#[deriving(Copy)]
+#[derive(Copy)]
 pub enum DeviceMode {
     GameBoy,
     SuperGameBoy,

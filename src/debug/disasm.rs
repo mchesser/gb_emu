@@ -9,7 +9,7 @@ fn invalid_inst(op: u8) -> String {
 pub fn disasm(mut addr: u16, mem: &Memory) -> String {
     macro_rules! get_n { () => ({ addr += 1; mem.lb(addr - 1) }) }
     macro_rules! get_ni { () => (get_n!() as i8) }
-    macro_rules! get_nn { () => (get_n!() as u16 + (get_n!() as u16 << 8)) }
+    macro_rules! get_nn { () => (get_n!() as u16 + ((get_n!() as u16) << 8)) }
 
     let op = mem.lb(addr);
     addr += 1;

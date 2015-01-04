@@ -1,12 +1,12 @@
 //! Manages the gameboy joypad.
 
-#[deriving(Copy)]
+#[derive(Copy)]
 pub enum ReadMode {
     Button,
     Direction,
 }
 
-#[deriving(Copy, PartialEq)]
+#[derive(Copy, PartialEq)]
 pub enum State {
     Pressed = 0,
     Released = 1,
@@ -48,10 +48,12 @@ impl Joypad {
     pub fn read(&self) -> u8 {
         match self.read_mode {
             ReadMode::Button => {
-                self.start as u8 << 3 | self.select as u8 << 2 | self.b as u8 << 1 | self.a as u8
+                (self.start as u8) << 3 | (self.select as u8) << 2 | (self.b as u8) << 1 |
+                    (self.a as u8)
             },
             ReadMode::Direction => {
-                self.down as u8 << 3 | self.up as u8 << 2 | self.left as u8 << 1 | self.right as u8
+                (self.down as u8) << 3 | (self.up as u8) << 2 | (self.left as u8) << 1 |
+                    (self.right as u8)
             },
         }
     }

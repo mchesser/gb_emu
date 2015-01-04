@@ -13,7 +13,7 @@ const INTERRUPT_TABLE: &'static [u16] = &[
     0x0060,   // Joypad
 ];
 
-#[deriving(Copy)]
+#[derive(Copy)]
 #[repr(u8)]
 pub enum Interrupt {
     VBlank = 0b00000001,
@@ -23,7 +23,7 @@ pub enum Interrupt {
     Joypad = 0b00010000,
 }
 
-#[deriving(PartialEq, Copy)]
+#[derive(PartialEq, Copy)]
 pub enum State {
     Running,
     Stopped,
@@ -230,6 +230,6 @@ impl<'a> JointReg<'a> {
 
     #[inline(always)]
     pub fn get(&self) -> u16 {
-        (*self.high as u16 << 8) + *self.low as u16
+        ((*self.high as u16) << 8) + *self.low as u16
     }
 }

@@ -19,7 +19,7 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
     macro_rules! get_n { () => (mem.lb(cpu.bump())) }
     // Read the next two bytes after pc, useful for instructions requiring a `nn` parameter
     macro_rules! get_nn { () => (
-        get_n!() as u16 + (get_n!() as u16 << 8)
+        (get_n!() as u16) + ((get_n!() as u16) << 8)
     ) }
     // Check if the zero flag is set
     macro_rules! zflag { () => ( cpu.f & ZERO_FLAG != 0 ) }
@@ -1209,7 +1209,7 @@ fn daa(cpu: &mut Cpu) {
     // |  0000  0NCH  AAAA AAAA | -> | AAAA AAAA FFFF FFFF |
     // Where N = ADD_SUB_FLAG, C = CARRY_FLAG, H = HALF_CARRY_FLAG, AAAA AAAA = register `a`,
     // FFFF FFFF = register `f`
-    const DAA_TABLE: [u16, ..2048] = [
+    const DAA_TABLE: [u16; 2048] = [
         0x0080,0x0100,0x0200,0x0300,0x0400,0x0500,0x0600,0x0700,
         0x0800,0x0900,0x1000,0x1100,0x1200,0x1300,0x1400,0x1500,
         0x1000,0x1100,0x1200,0x1300,0x1400,0x1500,0x1600,0x1700,
@@ -1468,7 +1468,7 @@ fn daa(cpu: &mut Cpu) {
         0x9250,0x9350,0x9450,0x9550,0x9650,0x9750,0x9850,0x9950,
     ];
 
-    let index = ((cpu.f & (ADD_SUB_FLAG | CARRY_FLAG | HALF_CARRY_FLAG)) as u16 << 4) |
+    let index = (((cpu.f & (ADD_SUB_FLAG | CARRY_FLAG | HALF_CARRY_FLAG)) as u16) << 4) |
                   cpu.a as u16;
     cpu.af().set(DAA_TABLE[index as uint]);
 }

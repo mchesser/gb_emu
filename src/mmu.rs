@@ -22,12 +22,12 @@ pub struct Memory {
     pub cart: Cartridge,
 
     /// Working ram (mapped to: 0xC000-0xDFFF, shadow: 0xE000-0xFDFF)
-    pub working_ram: [u8, ..0x2000],
+    pub working_ram: [u8; 0x2000],
     /// The currently mapped working ram bank (CGB only)
     pub wram_bank: uint,
 
     /// Zero-page high speed ram (mapped to: 0xFF80-0xFFFE)
-    pub fast_ram: [u8, ..0x7F],
+    pub fast_ram: [u8; 0x7F],
 
     /// GB graphics processor
     pub gpu: Gpu,
@@ -55,9 +55,9 @@ impl Memory {
 
             cart: Cartridge::new(),
 
-            working_ram: [0, ..0x2000],
+            working_ram: [0; 0x2000],
             wram_bank: 0,
-            fast_ram: [0, ..0x7F],
+            fast_ram: [0; 0x7F],
 
             gpu: Gpu::new(),
             sound: SoundController::new(),
@@ -219,7 +219,7 @@ impl Memory {
 
     /// Load a word from memory
     pub fn lw(&self, addr: u16) -> u16 {
-        self.lb(addr) as u16 + (self.lb(addr + 1) as u16 << 8)
+        (self.lb(addr) as u16) + ((self.lb(addr + 1) as u16) << 8)
     }
 
     /// Store a byte in memory

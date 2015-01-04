@@ -172,7 +172,7 @@ enum Branch {
 fn branch_decoder(mut addr: u16, mem: &Memory, flags: u8) -> Branch {
     macro_rules! get_n { () => ({ addr += 1; mem.lb(addr - 1) }) }
     macro_rules! get_ni { () => (get_n!() as i8) }
-    macro_rules! get_nn { () => (get_n!() as u16 + (get_n!() as u16 << 8)) }
+    macro_rules! get_nn { () => ((get_n!() as u16) + ((get_n!() as u16) << 8)) }
 
     let z = flags & 0b1000_0000 != 0;
     let c = flags & 0b0001_0000 != 0;
