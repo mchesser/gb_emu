@@ -1470,7 +1470,7 @@ fn daa(cpu: &mut Cpu) {
 
     let index = (((cpu.f & (ADD_SUB_FLAG | CARRY_FLAG | HALF_CARRY_FLAG)) as u16) << 4) |
                   cpu.a as u16;
-    cpu.af().set(DAA_TABLE[index as uint]);
+    cpu.af().set(DAA_TABLE[index as usize]);
 }
 
 include!("cpu_tests.rs");

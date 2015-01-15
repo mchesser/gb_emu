@@ -24,7 +24,7 @@ pub struct Memory {
     /// Working ram (mapped to: 0xC000-0xDFFF, shadow: 0xE000-0xFDFF)
     pub working_ram: [u8; 0x2000],
     /// The currently mapped working ram bank (CGB only)
-    pub wram_bank: uint,
+    pub wram_bank: usize,
 
     /// Zero-page high speed ram (mapped to: 0xFF80-0xFFFE)
     pub fast_ram: [u8; 0x7F],
@@ -129,14 +129,14 @@ impl Memory {
         // Map memory reads to their correct bytes. (See: http://problemkaputt.de/pandocs.htm)
         match addr {
             0x0000 ... 0x7FFF | 0xA000 ... 0xBFFF => self.cart.read(addr),
-            0x8000 ... 0x9FFF => self.gpu.vram()[(addr & 0x1FFF) as uint],
+            0x8000 ... 0x9FFF => self.gpu.vram()[(addr & 0x1FFF) as usize],
             // NOTE: Check this mapping when adding CGB support
-            0xC000 ... 0xDFFF => self.working_ram[(addr & 0x1FFF) as uint],
-            0xE000 ... 0xFDFF => self.working_ram[(addr & 0x1FFF) as uint],
-            0xFE00 ... 0xFE9F => self.gpu.oam[(addr & 0x00FF) as uint],
+            0xC000 ... 0xDFFF => self.working_ram[(addr & 0x1FFF) as usize],
+            0xE000 ... 0xFDFF => self.working_ram[(addr & 0x1FFF) as usize],
+            0xFE00 ... 0xFE9F => self.gpu.oam[(addr & 0x00FF) as usize],
             0xFEA0 ... 0xFEFF => 0xDE,
             0xFF00 ... 0xFF7F => self.read_io(addr),
-            0xFF80 ... 0xFFFE => self.fast_ram[(addr & 0x7F) as uint],
+            0xFF80 ... 0xFFFE => self.fast_ram[(addr & 0x7F) as usize],
             0xFFFF            => self.ie_reg,
 
             _ => unreachable!(),
@@ -179,7 +179,7 @@ impl Memory {
             0xFF24 => self.sound.nr50,
             0xFF25 => self.sound.nr51,
             0xFF26 => self.sound.nr52,
-            0xFF30 ... 0xFF3F => self.sound.wave_pattern_ram[(addr - 0xFF30) as uint],
+            0xFF30 ... 0xFF3F => self.sound.wave_pattern_ram[(addr - 0xFF30) as usize],
 
             0xFF40 => self.gpu.lcdc,
             0xFF41 => self.gpu.get_stat(),
@@ -229,14 +229,14 @@ impl Memory {
         // Map memory writes to their correct bytes. (See: http://problemkaputt.de/pandocs.htm)
         match addr {
             0x0000 ... 0x7FFF | 0xA000 ... 0xBFFF => self.cart.write(addr, value),
-            0x8000 ... 0x9FFF => self.gpu.vram_mut()[(addr & 0x1FFF) as uint] = value,
+            0x8000 ... 0x9FFF => self.gpu.vram_mut()[(addr & 0x1FFF) as usize] = value,
             // NOTE: Check this mapping when adding CGB support
-            0xC000 ... 0xDFFF => self.working_ram[(addr & 0x1FFF) as uint] = value,
-            0xE000 ... 0xFDFF => self.working_ram[(addr & 0x1FFF) as uint] = value,
-            0xFE00 ... 0xFE9F => self.gpu.oam[(addr & 0x00FF) as uint] = value,
+            0xC000 ... 0xDFFF => self.working_ram[(addr & 0x1FFF) as usize] = value,
+            0xE000 ... 0xFDFF => self.working_ram[(addr & 0x1FFF) as usize] = value,
+            0xFE00 ... 0xFE9F => self.gpu.oam[(addr & 0x00FF) as usize] = value,
             0xFEA0 ... 0xFEFF => self.invalid_memory(addr),
             0xFF00 ... 0xFF7F => self.write_io(addr, value),
-            0xFF80 ... 0xFFFE => self.fast_ram[(addr & 0x7F) as uint] = value,
+            0xFF80 ... 0xFFFE => self.fast_ram[(addr & 0x7F) as usize] = value,
             0xFFFF            => self.ie_reg = value,
 
             _ => unreachable!(),
@@ -276,7 +276,7 @@ impl Memory {
             0xFF24 => self.sound.nr50 = value,
             0xFF25 => self.sound.nr51 = value,
             0xFF26 => self.sound.nr52 = value,
-            0xFF30 ... 0xFF3F => self.sound.wave_pattern_ram[(addr - 0xFF30) as uint] = value,
+            0xFF30 ... 0xFF3F => self.sound.wave_pattern_ram[(addr - 0xFF30) as usize] = value,
 
             0xFF40 => self.gpu.lcdc = value,
             0xFF41 => self.gpu.set_stat(value),

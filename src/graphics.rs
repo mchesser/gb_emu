@@ -1,22 +1,22 @@
 use mmu::Memory;
 use cpu::Interrupt;
 
-pub const WIDTH: uint = 160;
-pub const HEIGHT: uint = 144;
+pub const WIDTH: usize = 160;
+pub const HEIGHT: usize = 144;
 const VBLANK_END: u8 = 153;
 
-const VRAM_SIZE: uint = 0x2000;
-const OAM_SIZE: uint = 0xA0;
+const VRAM_SIZE: usize = 0x2000;
+const OAM_SIZE: usize = 0xA0;
 
 /// The width (in pixels) of the BG map
-const MAP_WIDTH: uint = 256;
+const MAP_WIDTH: usize = 256;
 /// The height (int pixels) of the BG map
-const MAP_HEIGHT: uint = 256;
+const MAP_HEIGHT: usize = 256;
 
 /// The size of a tile (in pixels)
-const TILE_SIZE: uint = 8;
+const TILE_SIZE: usize = 8;
 
-const BYTES_PER_PIXEL: uint = 4;
+const BYTES_PER_PIXEL: usize = 4;
 
 pub mod timings {
     pub const OAM_READ: u32 = 80;
@@ -34,13 +34,13 @@ const GB_COLOR_TABLE: &'static [Color] = &[
     [0x60, 0x60, 0x60, 0xFF], // 66% on (dark gray)
     [0x00, 0x00, 0x00, 0xFF], // 100% on (black)
 ];
-pub fn palette_lookup(palette: u8, color_id: uint) -> Color {
-    GB_COLOR_TABLE[((palette >> (2 * color_id)) & 0x3) as uint]
+pub fn palette_lookup(palette: u8, color_id: usize) -> Color {
+    GB_COLOR_TABLE[((palette >> (2 * color_id)) & 0x3) as usize]
 }
 
 /// Extract the color id of a pixel
-pub fn get_color_id(low: u8, high: u8, x: uint) -> uint {
-    ((((high >> x) & 1) << 1) | ((low >> x) & 1)) as uint
+pub fn get_color_id(low: u8, high: u8, x: usize) -> usize {
+    ((((high >> x) & 1) << 1) | ((low >> x) & 1)) as usize
 }
 
 #[derive(Copy)]
@@ -79,7 +79,7 @@ pub struct Gpu {
     /// The GB display. Colours are defined in the order: (r, g, b, a). And the pixels are ordered
     /// by row ([ row1, row2, row3, ...]).
     pub framebuffer: [[u8; HEIGHT * WIDTH * 4]; 2],
-    pub backbuffer: uint,
+    pub backbuffer: usize,
 
     /// A flag that indicates that the framebuffer is ready to be read
     pub ready_flag: bool,
@@ -175,7 +175,7 @@ impl Gpu {
         self.lcdc & 0b1000_0000 != 0
     }
 
-    fn winmap_base_offset(&self) -> uint {
+    fn winmap_base_offset(&self) -> usize {
         if self.lcdc & 0b0100_0000 == 0 { 0x1800 } else { 0x1C00 }
     }
 
@@ -184,18 +184,18 @@ impl Gpu {
     }
 
     /// Adjust a tile id based on the currently selected tile set
-    fn adjust_tile_id(&self, tile_id: u8) -> uint {
+    fn adjust_tile_id(&self, tile_id: u8) -> usize {
         if self.lcdc & 0b0001_0000 == 0 {
-            if tile_id < 128 { return tile_id as uint + 256 }
+            if tile_id < 128 { return tile_id as usize + 256 }
         }
-        tile_id as uint
+        tile_id as usize
     }
 
-    fn bgmap_base_offset(&self) -> uint {
+    fn bgmap_base_offset(&self) -> usize {
         if self.lcdc & 0b0000_1000 == 0 { 0x1800 } else { 0x1C00 }
     }
 
-    fn get_sprite_height(&self) -> int {
+    fn get_sprite_height(&self) -> isize {
         if self.lcdc & 0b0000_0100 == 0 { 8 } else { 16 }
     }
 
@@ -209,12 +209,12 @@ impl Gpu {
 
     /// Returns the currently banked vram
     pub fn vram(&self) -> &[u8] {
-        &self.vram[self.vram_bank as uint]
+        &self.vram[self.vram_bank as usize]
     }
 
     /// Returns the currently banked vram
     pub fn vram_mut(&mut self) -> &mut [u8] {
-        &mut self.vram[self.vram_bank as uint]
+        &mut self.vram[self.vram_bank as usize]
     }
 
     /// Returns the value of the lcd status register
@@ -259,7 +259,7 @@ impl Gpu {
     }
 
     fn render_bg_scanline(&mut self) {
-        let map_base = self.bgmap_base_offset() + (self.ly + self.scy) as uint / TILE_SIZE *
+        let map_base = self.bgmap_base_offset() + (self.ly + self.scy) as usize / TILE_SIZE *
             (MAP_WIDTH / TILE_SIZE);
         let mut current_tile = self.get_bgmap_offset(0) + map_base;
         let mut tile_id = self.adjust_tile_id(self.vram()[current_tile]);
@@ -267,7 +267,7 @@ impl Gpu {
         let tile_y = (self.ly + self.scy) % TILE_SIZE as u8;
         let mut tile_x = self.scx % TILE_SIZE as u8;
 
-        let mut draw_offset = self.ly as uint * WIDTH * BYTES_PER_PIXEL;
+        let mut draw_offset = self.ly as usize * WIDTH * BYTES_PER_PIXEL;
         for x in (0..WIDTH) {
             // Move to the next tile if we have reached the end of the current tile
             if tile_x >= TILE_SIZE as u8 {
@@ -293,7 +293,7 @@ impl Gpu {
             return
         }
 
-        let map_base = self.winmap_base_offset() + ((self.ly - self.wy) as uint / TILE_SIZE) *
+        let map_base = self.winmap_base_offset() + ((self.ly - self.wy) as usize / TILE_SIZE) *
             (MAP_WIDTH / TILE_SIZE);
         let mut current_tile = map_base;
         let mut tile_id = self.adjust_tile_id(self.vram()[current_tile]);
@@ -302,7 +302,7 @@ impl Gpu {
         // FIXME(major): correctly handle window wrapping
         let mut tile_x = self.wx - 7;
 
-        let mut draw_offset = self.ly as uint * WIDTH * BYTES_PER_PIXEL;
+        let mut draw_offset = self.ly as usize * WIDTH * BYTES_PER_PIXEL;
         for _ in (0..WIDTH) {
             // Not sure why the tile_x needs to be reversed here.
             let color_id = self.tile_lookup(tile_id, 7 - tile_x, tile_y);
@@ -324,18 +324,18 @@ impl Gpu {
 
     fn render_sprite_scanline(&mut self) {
         let sprite_height = self.get_sprite_height();
-        let line_num = self.ly as int;
+        let line_num = self.ly as isize;
 
         // FIXME(minor): Can we do this more efficiently?
         let mut num_sprites = 0_i32;
         for sprite in self.oam.chunks(4) {
             // Read sprite attributes
-            let mut y_pos = sprite[0] as int - 16;
-            let x_pos = sprite[1] as int - 8;
+            let mut y_pos = sprite[0] as isize - 16;
+            let x_pos = sprite[1] as isize - 8;
 
             // Check if the sprite appears on this scanline
             if y_pos > line_num || y_pos + sprite_height <= line_num || x_pos <= -8 ||
-                x_pos >= WIDTH as int { continue }
+                x_pos >= WIDTH as isize { continue }
 
             num_sprites += 1;
 
@@ -344,18 +344,18 @@ impl Gpu {
             // are in the sprite
             if sprite_height == 16 {
                 tile_id &= 0xFE;
-                if self.ly as int - y_pos >= 8 {
+                if self.ly as isize - y_pos >= 8 {
                     tile_id |= 1;
                     y_pos += 8;
                 }
             }
-            let tile_id = tile_id as uint;
+            let tile_id = tile_id as usize;
             let flags = sprite[3];
             let palette = if flags & 0x10 == 0 { self.obp0 } else { self.obp1 };
 
             // Note: The draw offset must be stored as a signed integer, as the sprite may start off
             // the screen, but eventually is on the screen
-            let mut draw_offset = (line_num * WIDTH as int + x_pos) * BYTES_PER_PIXEL as int;
+            let mut draw_offset = (line_num * WIDTH as isize + x_pos) * BYTES_PER_PIXEL as isize;
 
             // Get the y coordinate of the sprite. If bit 6 is set, the sprite is flipped so we take
             // the y offset from the bottom of the sprite.
@@ -363,10 +363,10 @@ impl Gpu {
             let tile_y = if flags & 0x40 == 0 { line_num - y_pos }
                          else { 7 - (line_num - y_pos) } as u8;
 
-            debug_assert!((tile_y as uint) < TILE_SIZE);
+            debug_assert!((tile_y as usize) < TILE_SIZE);
 
-            for dx in (0..(TILE_SIZE as int)) {
-                if x_pos + dx >= 0 && x_pos + dx < WIDTH as int {
+            for dx in (0..(TILE_SIZE as isize)) {
+                if x_pos + dx >= 0 && x_pos + dx < WIDTH as isize {
                     // Flip x coordinate if bit 5 is set
                     let tile_x = if flags & 0x20 == 0 { 7 - dx } else { dx } as u8;
                     let color_id = self.tile_lookup(tile_id, tile_x, tile_y);
@@ -374,11 +374,11 @@ impl Gpu {
                     // Pixels in a sprite with a color id of 0 are transparent
                     if color_id != 0 {
                         let color = palette_lookup(palette, color_id);
-                        write_pixel(&mut self.framebuffer[self.backbuffer], draw_offset as uint,
+                        write_pixel(&mut self.framebuffer[self.backbuffer], draw_offset as usize,
                             color);
                     }
                 }
-                draw_offset += BYTES_PER_PIXEL as int;
+                draw_offset += BYTES_PER_PIXEL as isize;
             }
 
             // Only 10 sprites may be drawn per scanline, so if this was the tenth sprite then exit
@@ -387,18 +387,18 @@ impl Gpu {
         }
     }
 
-    fn get_bgmap_offset(&self, x: uint) -> uint {
-        ((self.scx as uint + x) % MAP_WIDTH as uint) / (TILE_SIZE as uint)
+    fn get_bgmap_offset(&self, x: usize) -> usize {
+        ((self.scx as usize + x) % MAP_WIDTH as usize) / (TILE_SIZE as usize)
     }
 
     /// Look up the color value of a pixel in a tile
-    fn tile_lookup(&self, id: uint, x: u8, y: u8) -> uint {
+    fn tile_lookup(&self, id: usize, x: u8, y: u8) -> usize {
         let tile_height = 8;
-        let index = id * tile_height * 2 + y as uint * 2;
+        let index = id * tile_height * 2 + y as usize * 2;
 
         // Colors stored in the 2bpp format are split over two bytes. The color's lower bit is
         // stored in the first byte and the high bit is stored in the second byte.
-        get_color_id(self.vram()[index], self.vram()[index + 1], x as uint)
+        get_color_id(self.vram()[index], self.vram()[index + 1], x as usize)
     }
 
     fn flip_buffers(&mut self) {
@@ -464,7 +464,7 @@ pub fn step(mem: &mut Memory, ticks: u8) {
 }
 
 /// Write a pixel to an offset in the frame buffer
-fn write_pixel(framebuffer: &mut [u8], offset: uint, color: Color) {
+fn write_pixel(framebuffer: &mut [u8], offset: usize, color: Color) {
     framebuffer[offset + 0] = color[0];
     framebuffer[offset + 1] = color[1];
     framebuffer[offset + 2] = color[2];

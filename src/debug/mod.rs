@@ -18,7 +18,7 @@ pub struct Logger {
     symbols: SymbolTable,
     call_stack: Vec<u16>,
     hide_output: bool,
-    reveal_at: uint,
+    reveal_at: usize,
     show_individual: bool,
 }
 

@@ -19,12 +19,12 @@ mod cpu_tests {
         (cpu, mem)
     }
 
-    fn instruction_runner(cpu: &mut Cpu, mem: &mut Memory, times: uint) -> uint {
+    fn instruction_runner(cpu: &mut Cpu, mem: &mut Memory, times: usize) -> usize {
         let mut num_cycles = 0;
         for _ in (0..times) {
             // Print out the instructions for debugging
             println!("{:04X}:\t\t{}", cpu.pc, disasm::disasm(cpu.pc, mem));
-            num_cycles += cpu.step(mem) as uint;
+            num_cycles += cpu.step(mem) as usize;
         }
         num_cycles
     }

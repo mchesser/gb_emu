@@ -30,12 +30,12 @@ pub struct Cartridge {
     /// Rom banks (maximum of 128 banks = 2MB, mapped to: 0x0000-0x7FFFF)
     pub rom: [[u8; 0x4000]; 128],
     /// The currently mapped rom bank (bank 0 is always mapped)
-    pub rom_bank: uint,
+    pub rom_bank: usize,
 
     /// External ram banks (maximum of 4 banks = 32KB, mapped to: 0xA000-0xBFFF)
     pub ram: [u8; 0x2000 * 4],
     /// The the currently mapped external ram bank (bank 0 is always mapped)
-    pub ram_bank: uint,
+    pub ram_bank: usize,
     // Indicates if the ram has been enabled
     pub ram_enabled: bool,
 
@@ -62,8 +62,8 @@ impl Cartridge {
 
     /// Convert the specified address into an index into the ram array, adjusting the index
     /// according to the currently enabled ram bank
-    pub fn ram_index(&self, addr: u16) -> uint {
-        0x2000 * self.ram_bank + (addr & 0x1FFF) as uint
+    pub fn ram_index(&self, addr: u16) -> usize {
+        0x2000 * self.ram_bank + (addr & 0x1FFF) as usize
     }
 
     pub fn load(&mut self, data: &[u8], save_file: Option<Box<SaveFile>>) {
@@ -97,7 +97,7 @@ impl Cartridge {
 
             x => { panic!("Unsupported cartridge: {:X}", x); }
         }
-        println!("{}", self.mbc);
+        println!("{:?}", self.mbc);
 
         // Load the save file if there is one
         self.save_file = save_file;
@@ -110,8 +110,8 @@ impl Cartridge {
         // FIXME(minor): should probably handle invalid memory accesses depending on the memory bank
         // controller more carefully.
         match addr {
-            0x0000 ... 0x3FFF => self.rom[0][(addr & 0x3FFF) as uint],
-            0x4000 ... 0x7FFF => self.rom[self.rom_bank][(addr & 0x3FFF) as uint],
+            0x0000 ... 0x3FFF => self.rom[0][(addr & 0x3FFF) as usize],
+            0x4000 ... 0x7FFF => self.rom[self.rom_bank][(addr & 0x3FFF) as usize],
             0xA000 ... 0xBFFF => self.ram[self.ram_index(addr)],
 
             _ => unreachable!(),
@@ -142,14 +142,14 @@ impl Cartridge {
                 Mbc1 => {
                     let high_bits = self.rom_bank as u8 & 0x60;
                     self.rom_bank =
-                        if (value & 0x1F) == 0 { (high_bits | 1) as uint }
-                        else { (high_bits | (value & 0x1F)) as uint };
+                        if (value & 0x1F) == 0 { (high_bits | 1) as usize }
+                        else { (high_bits | (value & 0x1F)) as usize };
                 },
-                Mbc2 => self.rom_bank = (value & 0x0F) as uint,
+                Mbc2 => self.rom_bank = (value & 0x0F) as usize,
                 Mbc3 => {
                     self.rom_bank =
                         if value == 0x00 { 1 }
-                        else { (value & 0x7F) as uint };
+                        else { (value & 0x7F) as usize };
                 },
             },
 
@@ -159,15 +159,15 @@ impl Cartridge {
                 Mbc1 => {
                     let bits = value & 0x3;
                     if self.selected_banking_mode == BankingMode::Rom {
-                        self.rom_bank = (bits << 5 | (self.rom_bank as u8 & 0x1F)) as uint;
+                        self.rom_bank = (bits << 5 | (self.rom_bank as u8 & 0x1F)) as usize;
                     }
                     else {
-                        self.ram_bank = bits as uint;
+                        self.ram_bank = bits as usize;
                     }
                 },
                 Mbc3 => {
                     // FIXME(major): handle real time clock here
-                    self.ram_bank = (value & 0x3) as uint;
+                    self.ram_bank = (value & 0x3) as usize;
                 },
             },
 
