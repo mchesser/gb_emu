@@ -14,9 +14,9 @@ const MAP_WIDTH: usize = 256;
 const MAP_HEIGHT: usize = 256;
 
 /// The size of a tile (in pixels)
-const TILE_SIZE: usize = 8;
+pub const TILE_SIZE: usize = 8;
 
-const BYTES_PER_PIXEL: usize = 4;
+pub const BYTES_PER_PIXEL: usize = 4;
 
 pub mod timings {
     pub const OAM_READ: u32 = 80;
@@ -81,6 +81,10 @@ pub struct Gpu {
     pub framebuffer: [[u8; HEIGHT * WIDTH * 4]; 2],
     pub backbuffer: usize,
 
+    /// The priority of each of the pixels to be displayed. This can be used for things such as
+    /// drawing part of the background above sprites.
+    pub pixel_priorities: [[u8; HEIGHT * WIDTH]; 2],
+
     /// A flag that indicates that the framebuffer is ready to be read
     pub ready_flag: bool,
 
@@ -140,6 +144,8 @@ impl Gpu {
             mode_clock: 0,
             framebuffer: [[0; HEIGHT * WIDTH * BYTES_PER_PIXEL]; 2],
             backbuffer: 0,
+
+            pixel_priorities: [[0; HEIGHT * WIDTH]; 2],
 
             ready_flag: false,
             vram: [[0; VRAM_SIZE]; 2],
@@ -244,8 +250,12 @@ impl Gpu {
     }
 
     pub fn render_scanline(&mut self) {
-        // TODO: Handle pixel priorities
         if self.lcd_on() {
+            // Clear old pixel priorities
+            for pixel in self.pixel_priorities[self.backbuffer].iter_mut() {
+                *pixel = 0;
+            }
+
             if self.bg_display_on() {
                 self.render_bg_scanline();
             }
@@ -278,6 +288,8 @@ impl Gpu {
 
             // Not sure why the tile_x needs to be reversed here.
             let color_id = self.tile_lookup(tile_id, 7 - tile_x, tile_y);
+            self.pixel_priorities[self.backbuffer][self.ly as usize * WIDTH + x] = color_id as u8;
+
             let color = palette_lookup(self.bgp, color_id);
 
             write_pixel(&mut self.framebuffer[self.backbuffer], draw_offset, color);
@@ -302,10 +314,14 @@ impl Gpu {
         // FIXME(major): correctly handle window wrapping
         let mut tile_x = self.wx - 7;
 
-        let mut draw_offset = self.ly as usize * WIDTH * BYTES_PER_PIXEL;
-        for _ in (0..WIDTH) {
+        let row_start = self.ly as usize * WIDTH;
+        let mut draw_offset = row_start * BYTES_PER_PIXEL;
+
+        for x in (0..WIDTH) {
             // Not sure why the tile_x needs to be reversed here.
             let color_id = self.tile_lookup(tile_id, 7 - tile_x, tile_y);
+            self.pixel_priorities[self.backbuffer][row_start + x] = color_id as u8;
+
             let color = palette_lookup(self.bgp, color_id);
 
             write_pixel(&mut self.framebuffer[self.backbuffer], draw_offset, color);
@@ -334,8 +350,11 @@ impl Gpu {
             let x_pos = sprite[1] as isize - 8;
 
             // Check if the sprite appears on this scanline
-            if y_pos > line_num || y_pos + sprite_height <= line_num || x_pos <= -8 ||
-                x_pos >= WIDTH as isize { continue }
+            if y_pos > line_num || y_pos + sprite_height <= line_num ||
+                x_pos <= -8 || x_pos >= WIDTH as isize
+            {
+                continue;
+            }
 
             num_sprites += 1;
 
@@ -362,17 +381,25 @@ impl Gpu {
             // CHECKME: how are flipped 8x16 sprites handled?
             let tile_y = if flags & 0x40 == 0 { line_num - y_pos }
                          else { 7 - (line_num - y_pos) } as u8;
-
             debug_assert!((tile_y as usize) < TILE_SIZE);
 
+            let row_start = self.ly as usize * WIDTH;
             for dx in (0..(TILE_SIZE as isize)) {
-                if x_pos + dx >= 0 && x_pos + dx < WIDTH as isize {
+                let px_priority = self.pixel_priorities[self.backbuffer][row_start + (x_pos + dx) as usize];
+                // Check that this pixel is not off the screen and is not blocked by a bg or window
+                // tile that has priority
+                if x_pos + dx >= 0 && x_pos + dx < WIDTH as isize &&
+                    px_priority <= 3
+                {
                     // Flip x coordinate if bit 5 is set
                     let tile_x = if flags & 0x20 == 0 { 7 - dx } else { dx } as u8;
                     let color_id = self.tile_lookup(tile_id, tile_x, tile_y);
 
-                    // Pixels in a sprite with a color id of 0 are transparent
-                    if color_id != 0 {
+                    // Note:
+                    // - Pixels in a sprite with a color id of 0 are transparent.
+                    // - If the 7th flag bit is set and there is nonzero value set in the priority
+                    //   buffer, then we keep the old data.
+                    if color_id != 0 && (flags & 0x80 == 0 || px_priority == 0) {
                         let color = palette_lookup(palette, color_id);
                         write_pixel(&mut self.framebuffer[self.backbuffer], draw_offset as usize,
                             color);
@@ -464,7 +491,7 @@ pub fn step(mem: &mut Memory, ticks: u8) {
 }
 
 /// Write a pixel to an offset in the frame buffer
-fn write_pixel(framebuffer: &mut [u8], offset: usize, color: Color) {
+pub fn write_pixel(framebuffer: &mut [u8], offset: usize, color: Color) {
     framebuffer[offset + 0] = color[0];
     framebuffer[offset + 1] = color[1];
     framebuffer[offset + 2] = color[2];
