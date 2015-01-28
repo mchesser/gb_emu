@@ -78,15 +78,14 @@ pub struct Gpu {
 
     /// The GB display. Colours are defined in the order: (r, g, b, a). And the pixels are ordered
     /// by row ([ row1, row2, row3, ...]).
-    pub framebuffer: [[u8; HEIGHT * WIDTH * 4]; 2],
-    pub backbuffer: usize,
+    pub framebuffer: [u8; HEIGHT * WIDTH * 4],
 
     /// The priority of each of the pixels to be displayed. This can be used for things such as
     /// drawing part of the background above sprites.
-    pub pixel_priorities: [[u8; HEIGHT * WIDTH]; 2],
+    pub pixel_priorities: [u8; HEIGHT * WIDTH],
 
-    /// A flag that indicates that the framebuffer is ready to be read
-    pub ready_flag: bool,
+    /// A flag that indicates when a vblank has occured
+    pub vblank_flag: bool,
 
     /// The GPU vram (mapped to: 0x8000-0x9FFF)
     pub vram: [[u8; VRAM_SIZE]; 2],
@@ -142,12 +141,10 @@ impl Gpu {
     pub fn new() -> Gpu {
         Gpu {
             mode_clock: 0,
-            framebuffer: [[0; HEIGHT * WIDTH * BYTES_PER_PIXEL]; 2],
-            backbuffer: 0,
+            framebuffer: [0; HEIGHT * WIDTH * BYTES_PER_PIXEL],
+            pixel_priorities: [0; HEIGHT * WIDTH],
 
-            pixel_priorities: [[0; HEIGHT * WIDTH]; 2],
-
-            ready_flag: false,
+            vblank_flag: false,
             vram: [[0; VRAM_SIZE]; 2],
             vram_bank: 0,
             oam: [0; OAM_SIZE],
@@ -252,7 +249,7 @@ impl Gpu {
     pub fn render_scanline(&mut self) {
         if self.lcd_on() {
             // Clear old pixel priorities
-            for pixel in self.pixel_priorities[self.backbuffer].iter_mut() {
+            for pixel in self.pixel_priorities.iter_mut() {
                 *pixel = 0;
             }
 
@@ -288,11 +285,11 @@ impl Gpu {
 
             // Not sure why the tile_x needs to be reversed here.
             let color_id = self.tile_lookup(tile_id, 7 - tile_x, tile_y);
-            self.pixel_priorities[self.backbuffer][self.ly as usize * WIDTH + x] = color_id as u8;
+            self.pixel_priorities[self.ly as usize * WIDTH + x] = color_id as u8;
 
             let color = palette_lookup(self.bgp, color_id);
 
-            write_pixel(&mut self.framebuffer[self.backbuffer], draw_offset, color);
+            write_pixel(&mut self.framebuffer, draw_offset, color);
             draw_offset += BYTES_PER_PIXEL;
             tile_x += 1;
         }
@@ -320,11 +317,11 @@ impl Gpu {
         for x in (0..WIDTH) {
             // Not sure why the tile_x needs to be reversed here.
             let color_id = self.tile_lookup(tile_id, 7 - tile_x, tile_y);
-            self.pixel_priorities[self.backbuffer][row_start + x] = color_id as u8;
+            self.pixel_priorities[row_start + x] = color_id as u8;
 
             let color = palette_lookup(self.bgp, color_id);
 
-            write_pixel(&mut self.framebuffer[self.backbuffer], draw_offset, color);
+            write_pixel(&mut self.framebuffer, draw_offset, color);
             draw_offset += 4;
 
             tile_x += 1;
@@ -385,7 +382,7 @@ impl Gpu {
 
             let row_start = self.ly as usize * WIDTH;
             for dx in (0..(TILE_SIZE as isize)) {
-                let px_priority = self.pixel_priorities[self.backbuffer][row_start + (x_pos + dx) as usize];
+                let px_priority = self.pixel_priorities[row_start + (x_pos + dx) as usize];
                 // Check that this pixel is not off the screen and is not blocked by a bg or window
                 // tile that has priority
                 if x_pos + dx >= 0 && x_pos + dx < WIDTH as isize &&
@@ -401,7 +398,7 @@ impl Gpu {
                     //   buffer, then we keep the old data.
                     if color_id != 0 && (flags & 0x80 == 0 || px_priority == 0) {
                         let color = palette_lookup(palette, color_id);
-                        write_pixel(&mut self.framebuffer[self.backbuffer], draw_offset as usize,
+                        write_pixel(&mut self.framebuffer, draw_offset as usize,
                             color);
                     }
                 }
@@ -426,11 +423,6 @@ impl Gpu {
         // Colors stored in the 2bpp format are split over two bytes. The color's lower bit is
         // stored in the first byte and the high bit is stored in the second byte.
         get_color_id(self.vram()[index], self.vram()[index + 1], x as usize)
-    }
-
-    fn flip_buffers(&mut self) {
-        self.ready_flag = true;
-        self.backbuffer = 1 - self.backbuffer;
     }
 }
 
@@ -461,7 +453,7 @@ pub fn step(mem: &mut Memory, ticks: u8) {
                 mem.gpu.ly += 1;
                 if mem.gpu.ly >= HEIGHT as u8 {
                     mem.gpu.set_mode(Mode::VBlank);
-                    mem.gpu.flip_buffers();
+                    mem.gpu.vblank_flag = true;
                     mem.if_reg |= Interrupt::VBlank as u8;
                 }
                 else {
