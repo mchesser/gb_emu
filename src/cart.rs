@@ -2,7 +2,7 @@
 use std::slice::bytes::copy_memory;
 
 use cart::MemoryBankController::{NoMbc, Mbc1, Mbc2, Mbc3};
-#[derive(Show, Copy, PartialEq)]
+#[derive(Debug, Copy, PartialEq)]
 pub enum MemoryBankController {
     NoMbc, // No memory bank controller (32Kbyte ROM only)
     Mbc1,  // Max 2MBbyte ROM and/or 32KByte RAM

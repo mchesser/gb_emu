@@ -1,5 +1,4 @@
-#![feature(slicing_syntax, unboxed_closures)]
-#![allow(unstable)] // This generates a lot of unnecessary warnings at the moment
+#![feature(slicing_syntax, unboxed_closures, core)]
 
 pub mod emulator;
 pub mod cpu;
