@@ -129,7 +129,7 @@ impl Cartridge {
                     }
                 },
                 Mbc3 => {
-                    self.ram_enabled = value == 0x0A;
+                    self.ram_enabled = value & 0xF == 0x0A;
 
                     // FIXME(major): uncomment the following line when the real-time-clock is added.
                     // self.rtc.enabled = value == 0x0A;

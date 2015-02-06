@@ -72,7 +72,6 @@ impl LcdStatRegister {
     }
 }
 
-
 pub struct Gpu {
     pub mode_clock: u16,
 
@@ -382,12 +381,8 @@ impl Gpu {
 
             let row_start = self.ly as usize * WIDTH;
             for dx in (0..(TILE_SIZE as isize)) {
-                let px_priority = self.pixel_priorities[row_start + (x_pos + dx) as usize];
-                // Check that this pixel is not off the screen and is not blocked by a bg or window
-                // tile that has priority
-                if x_pos + dx >= 0 && x_pos + dx < WIDTH as isize &&
-                    px_priority <= 3
-                {
+                // Check that this pixel is not off the screen
+                if x_pos + dx >= 0 && x_pos + dx < WIDTH as isize {
                     // Flip x coordinate if bit 5 is set
                     let tile_x = if flags & 0x20 == 0 { 7 - dx } else { dx } as u8;
                     let color_id = self.tile_lookup(tile_id, tile_x, tile_y);
@@ -396,10 +391,13 @@ impl Gpu {
                     // - Pixels in a sprite with a color id of 0 are transparent.
                     // - If the 7th flag bit is set and there is nonzero value set in the priority
                     //   buffer, then we keep the old data.
-                    if color_id != 0 && (flags & 0x80 == 0 || px_priority == 0) {
+                    // - If the priority buffer contains a value greater than 3, keep the old data
+                    let px_priority = self.pixel_priorities[row_start + (x_pos + dx) as usize];
+                    if color_id != 0 && (flags & 0x80 == 0 || px_priority == 0)
+                        && px_priority <= 3
+                    {
                         let color = palette_lookup(palette, color_id);
-                        write_pixel(&mut self.framebuffer, draw_offset as usize,
-                            color);
+                        write_pixel(&mut self.framebuffer, draw_offset as usize, color);
                     }
                 }
                 draw_offset += BYTES_PER_PIXEL as isize;
