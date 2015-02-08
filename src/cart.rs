@@ -23,6 +23,96 @@ pub trait SaveFile: Send {
     fn save(&mut self, data: &[u8]);
 }
 
+pub struct RealTimeClock {
+    state: u8,
+    carry: bool,
+    halt: bool,
+
+    seconds: u8,
+    minutes: u8,
+    hours: u8,
+    days: u16,
+}
+
+impl RealTimeClock {
+    fn new() -> RealTimeClock {
+        RealTimeClock {
+            state: 0,
+            carry: false,
+            halt: false,
+
+            seconds: 0,
+            minutes: 0,
+            hours: 0,
+            days: 0,
+        }
+    }
+
+    fn read(&self) -> u8 {
+        match self.state & 0x7 {
+            0 => self.seconds,
+            1 => self.minutes,
+            2 => self.hours,
+            3 => self.days as u8,
+            4 => {
+                ((self.days >> 8) as u8) |
+                if self.halt { 0x40 } else { 0 } |
+                if self.carry { 0x80 } else { 0 }
+            },
+
+            _ => 0x00,
+        }
+    }
+
+    fn write(&mut self, value: u8) {
+        match self.state & 0x7 {
+            0 => self.seconds = value % 60,
+            1 => self.minutes = value % 60,
+            2 => self.hours = value % 24,
+            3 => self.days = (self.days & 0x100) | (value as u16),
+            4 => {
+                self.days = (((value & 1) as u16) << 8) | (self.days & 0xFF);
+                self.halt = (value & 0x40) != 0;
+                self.carry = (value & 0x80) != 0;
+            },
+            _ => {},
+        }
+    }
+
+    fn is_enabled(&self) -> bool {
+        self.state & 0x8 != 0
+    }
+
+    pub fn tick(&mut self) {
+        if self.halt {
+            return;
+        }
+
+        self.seconds += 1;
+        if self.seconds >= 60 {
+            self.seconds = 0;
+
+            self.minutes += 1;
+            if self.minutes >= 60 {
+                self.minutes = 0;
+
+                self.hours += 1;
+                if self.hours >= 24 {
+                    self.hours = 0;
+
+                    self.days += 1;
+                    if self.days >= 356 {
+                        self.days = 0;
+
+                        self.carry = true;
+                    }
+                }
+            }
+        }
+    }
+
+}
+
 pub struct Cartridge {
     mbc: MemoryBankController,
     selected_banking_mode: BankingMode,
@@ -41,6 +131,9 @@ pub struct Cartridge {
 
     /// The save file attached to the cartridge
     pub save_file: Option<Box<SaveFile>>,
+
+    /// The realtime clock attached to the cartridge
+    pub rtc: RealTimeClock,
 }
 
 impl Cartridge {
@@ -57,6 +150,7 @@ impl Cartridge {
             ram_enabled: false,
 
             save_file: None,
+            rtc: RealTimeClock::new(),
         }
     }
 
@@ -112,7 +206,10 @@ impl Cartridge {
         match addr {
             0x0000 ... 0x3FFF => self.rom[0][(addr & 0x3FFF) as usize],
             0x4000 ... 0x7FFF => self.rom[self.rom_bank][(addr & 0x3FFF) as usize],
-            0xA000 ... 0xBFFF => self.ram[self.ram_index(addr)],
+            0xA000 ... 0xBFFF => {
+                if self.rtc.is_enabled() { self.rtc.read() }
+                else { self.ram[self.ram_index(addr)] }
+            },
 
             _ => unreachable!(),
         }
@@ -130,8 +227,7 @@ impl Cartridge {
                 },
                 Mbc3 => {
                     self.ram_enabled = value & 0xF == 0x0A;
-
-                    // FIXME(major): uncomment the following line when the real-time-clock is added.
+                    // CHECKME: Not sure if this also enables the rtc
                     // self.rtc.enabled = value == 0x0A;
                 },
             },
@@ -166,7 +262,7 @@ impl Cartridge {
                     }
                 },
                 Mbc3 => {
-                    // FIXME(major): handle real time clock here
+                    self.rtc.state = value & 0xF;
                     self.ram_bank = (value & 0x3) as usize;
                 },
             },
@@ -195,6 +291,7 @@ impl Cartridge {
 impl Drop for Cartridge {
     fn drop(&mut self) {
         if let Some(ref mut save_file) = self.save_file {
+            // TODO: Save the rtc
             save_file.save(&self.ram);
         }
     }
