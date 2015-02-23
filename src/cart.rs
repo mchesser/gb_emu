@@ -191,7 +191,6 @@ impl Cartridge {
 
             x => { panic!("Unsupported cartridge: {:X}", x); }
         }
-        println!("{:?}", self.mbc);
 
         // Load the save file if there is one
         self.save_file = save_file;

@@ -1,7 +1,6 @@
 use emulator::DeviceMode;
 use cart::Cartridge;
-use graphics;
-use graphics::Gpu;
+use graphics::{self, Gpu};
 use sound::SoundController;
 use joypad::Joypad;
 use timer::Timer;

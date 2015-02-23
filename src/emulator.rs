@@ -39,7 +39,8 @@ impl Emulator {
     /// Run the emulator for one frame. To emulate the Game Boy system realistically this should be
     /// called at 60 Hz
     pub fn frame<F, G>(&mut self, mut on_tick: F, mut on_vblank: G)
-        where F: FnMut(&mut Cpu, &mut Memory), G: FnMut(&mut Cpu, &mut Memory)
+        where F: FnMut(&mut Cpu, &mut Memory),
+              G: FnMut(&mut Cpu, &mut Memory)
     {
         if self.mem.crashed | self.cpu.crashed {
             return;

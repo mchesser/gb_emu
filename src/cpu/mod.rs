@@ -134,7 +134,8 @@ impl Cpu {
         }
 
         self.disable_interrupts(mem);
-        self.call(mem, INTERRUPT_TABLE[i]);
+        // Change to `self.call(mem, INTERRUPT_TABLE[i]);` When #2184 is fixed
+        self.call(mem, INTERRUPT_TABLE[..][i]);
         self.state = State::Running;
 
         1
