@@ -28,7 +28,7 @@ pub mod timings {
 }
 
 pub type Color = [u8; 4];
-const GB_COLOR_TABLE: &'static [Color] = &[
+pub const GB_COLOR_TABLE: &'static [Color] = &[
     [0xFF, 0xFF, 0xFF, 0xFF], // 0% on (white)
     [0xC0, 0xC0, 0xC0, 0xFF], // 33% on (light gray)
     [0x60, 0x60, 0x60, 0xFF], // 66% on (dark gray)
@@ -95,30 +95,19 @@ pub struct Gpu {
     /// The GB sprite access table (OAM) (mapped to: [0xFE00-0xFF9F])
     pub oam: [u8; OAM_SIZE],
 
-    /// LCD Control Register (mapped to: 0xFF40)
-    pub lcdc: u8,
-    /// LCD Status Register (mapped to: 0xFF42)
-    stat: LcdStatRegister,
+    pub lcdc: u8,              // LCD Control Register (0xFF40)
+    stat: LcdStatRegister,     // LCD Status Register (0xFF42)
 
-    /// Scroll Y Register (mapped to: 0xFF42)
-    pub scy: u8,
-    /// Scroll X Register (mapped to: 0xFF43)
-    pub scx: u8,
-    /// LCDC Y-Coordinate Register (mapped to: 0xFF44)
-    pub ly: u8,
-    /// LY Compare Register (mapped to: 0xFF45)
-    pub lyc: u8,
-    /// Window Y Position Register (mapped to: 0xFF4A)
-    pub wy: u8,
-    /// Window X Position Register (mapped to: 0xFF4B)
-    pub wx: u8,
+    pub scy: u8,    // Scroll Y register (0xFF42)
+    pub scx: u8,    // Scroll X Register (0xFF43)
+    pub ly: u8,     // LCDC Y-Coordinate Register (0xFF44)
+    pub lyc: u8,    // LY Compare Register (0xFF45)
+    pub wy: u8,     // Window Y Position Register (0xFF4A)
+    pub wx: u8,     // Window X Position Register (0xFF4B)
 
-    /// Bg Palette Data Register (mapped to: 0xFF47)
-    pub bgp: u8,
-    /// Object Palette 0 Data (mapped to: 0xFF48)
-    pub obp0: u8,
-    /// Object Palette 1 Data (mapped to: 0xFF49)
-    pub obp1: u8,
+    pub bgp: u8,    // Bg Palette Data Register (mapped to: 0xFF47)
+    pub obp0: u8,   // Object Palette 0 Data (mapped to: 0xFF48)
+    pub obp1: u8,   // Object Palette 1 Data (mapped to: 0xFF49)
 
     // TODO: implement CGB colour palettes
     // pub bcps: u8,
