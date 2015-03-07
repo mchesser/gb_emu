@@ -5,7 +5,7 @@ use mmu::Memory;
 
 pub mod exec;
 
-const INTERRUPT_TABLE: &'static [u16] = &[
+static INTERRUPT_TABLE: [u16; 5] = [
     0x0040,   // V-Blank
     0x0048,   // LCD STAT
     0x0050,   // Timer
@@ -134,8 +134,7 @@ impl Cpu {
         }
 
         self.disable_interrupts(mem);
-        // Change to `self.call(mem, INTERRUPT_TABLE[i]);` When #2184 is fixed
-        self.call(mem, INTERRUPT_TABLE[..][i]);
+        self.call(mem, INTERRUPT_TABLE[i as usize]);
         self.state = State::Running;
 
         1

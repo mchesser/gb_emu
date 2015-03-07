@@ -35,8 +35,7 @@ pub const GB_COLOR_TABLE: &'static [Color] = &[
     [0x00, 0x00, 0x00, 0xFF], // 100% on (black)
 ];
 pub fn palette_lookup(palette: u8, color_id: usize) -> Color {
-    // Change to `GB_COLOR_TABLE[((palette >> (2 * color_id)) & 0x3) as usize]` When #2184 is fixed
-    GB_COLOR_TABLE[..][((palette >> (2 * color_id)) & 0x3) as usize]
+    GB_COLOR_TABLE[((palette >> (2 * color_id)) & 0x3) as usize]
 }
 
 /// Extract the color id of a pixel
