@@ -188,7 +188,7 @@ impl Cpu {
 
     /// Increments the program counter, returning the old value
     pub fn bump(&mut self) -> u16 {
-        self.pc = self.sp.wrapping_add(1);
+        self.pc = self.pc.wrapping_add(1);
         self.pc.wrapping_sub(1)
     }
 
