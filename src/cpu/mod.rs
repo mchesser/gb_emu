@@ -156,24 +156,24 @@ impl Cpu {
     }
 
     pub fn push16(&mut self, mem: &mut Memory, val: u16) {
-        self.sp -= 2;
+        self.sp = self.sp.wrapping_sub(2);
         mem.sw(self.sp, val);
     }
 
     pub fn pop16(&mut self, mem: &mut Memory) -> u16 {
-        self.sp += 2;
-        mem.lw(self.sp - 2)
+        self.sp = self.sp.wrapping_add(2);
+        mem.lw(self.sp.wrapping_sub(2))
     }
 
     pub fn call(&mut self, mem: &mut Memory, addr: u16) {
-        self.sp -= 2;
+        self.sp = self.sp.wrapping_sub(2);
         mem.sw(self.sp, self.pc);
         self.pc = addr;
     }
 
     pub fn ret(&mut self, mem: &mut Memory) {
         self.pc = mem.lw(self.sp);
-        self.sp += 2;
+        self.sp = self.sp.wrapping_add(2);
     }
 
     /// Halt the cpu
@@ -188,8 +188,8 @@ impl Cpu {
 
     /// Increments the program counter, returning the old value
     pub fn bump(&mut self) -> u16 {
-        self.pc += 1;
-        self.pc - 1
+        self.pc = self.sp.wrapping_add(1);
+        self.pc.wrapping_sub(1)
     }
 
     /// Handle instructions corresponding to invalid opcodes

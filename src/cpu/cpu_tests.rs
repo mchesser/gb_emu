@@ -1,4 +1,5 @@
 #[cfg(test)]
+#[allow(non_snake_case)]
 mod cpu_tests {
     use cpu::Cpu;
     use mmu::Memory;

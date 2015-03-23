@@ -159,7 +159,6 @@ fn hide_check(logger: &mut Logger, key: (u8, u16)) {
     }
 }
 
-
 enum Branch {
     RelativeJump(i8),
     AbsoluteJump(u16),

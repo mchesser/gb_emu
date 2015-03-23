@@ -69,13 +69,13 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
     // LD dd, (nn)
     macro_rules! ld_ddNN { ($dd: ident) => ({
         let addr = get_nn!();
-        cpu.$dd().high = mem.lb(addr + 1);
+        cpu.$dd().high = mem.lb(addr.wrapping_add(1));
         cpu.$dd().low = mem.lb(addr);
     }) }
     // LD (nn), dd
     macro_rules! ld_NNdd { ($dd: ident) => ({
         let addr = get_nn!();
-        mem.sb(addr + 1, cpu.$dd().high);
+        mem.sb(addr.wrapping_add(1), cpu.$dd().high);
         mem.sb(addr, cpu.$dd().low);
     }) }
     // LD SP, HL
@@ -129,7 +129,7 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
         cpu.f = 0;
         if (cpu.a & 0xf) + (val & 0xf) > 0xf { cpu.f |= HALF_CARRY_FLAG; }
         if cpu.a as u16 + val as u16 > 0xff { cpu.f |= CARRY_FLAG; }
-        cpu.a += val;
+        cpu.a = cpu.a.wrapping_add(val);
         if cpu.a == 0 { cpu.f |= ZERO_FLAG; }
     }) }
     macro_rules! add_an { () => (add_a!(get_n!())) }
@@ -160,7 +160,7 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
 
     // ADC A, s
     macro_rules! adc_a { ($s: expr) => (
-        add_a!($s + ((cpu.f >> 4) & 0x1))
+        add_a!(($s).wrapping_add((cpu.f >> 4) & 0x1))
     ) }
     macro_rules! adc_an { () => (adc_a!(get_n!())) }
     macro_rules! adc_ar { ($r: ident) => (adc_a!(cpu.$r)) }
@@ -168,7 +168,7 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
 
     // ADC HL, ss
     macro_rules! adc_hlss { ($ss: ident) => (
-        add_hl!(cpu.$ss.get() + ((cpu.f >> 4) & 0x1))
+        add_hl!(cpu.$ss.get().wrapping_add(((cpu.f >> 4) & 0x1)))
     ) }
 
     // CP A, s
@@ -187,7 +187,7 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
     macro_rules! sub_a { ($s: expr) => ({
         let val = $s;
         cp_a!(val);
-        cpu.a -= val;
+        cpu.a = cpu.a.wrapping_sub(val);
     }) }
     macro_rules! sub_an { () => (sub_a!(get_n!())) }
     macro_rules! sub_ar { ($r: ident) => (sub_a!(cpu.$r)) }
@@ -195,7 +195,7 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
 
     // SBC A, s
     macro_rules! sbc_a { ($s: expr) => (
-        sub_a!($s + ((cpu.f >> 4) & 0x1))
+        sub_a!(($s).wrapping_add(((cpu.f >> 4) & 0x1)))
     ) }
     macro_rules! sbc_an { () => (sbc_a!(get_n!())) }
     macro_rules! sbc_ar { ($r: ident) => (sbc_a!(cpu.$r)) }
@@ -233,14 +233,14 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
 
     // INC r
     macro_rules! inc_r { ($r: ident) => ({
-        cpu.$r += 1;
+        cpu.$r = cpu.$r.wrapping_add(1);
         cpu.f &= CARRY_FLAG;
         if (cpu.$r & 0xf) == 0 { cpu.f |= HALF_CARRY_FLAG; }
         if cpu.$r == 0 { cpu.f |= ZERO_FLAG; }
     }) }
     // INC (HL)
     macro_rules! inc_HL { () => ({
-        let val = mem.lb(cpu.hl().get()) + 1;
+        let val = mem.lb(cpu.hl().get()).wrapping_add(1);
         mem.sb(cpu.hl().get(), val);
 
         cpu.f &= CARRY_FLAG;
@@ -249,16 +249,16 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
     }) }
     // INC ss
     macro_rules! inc_ss { ($ss: ident) => ({
-        let val = cpu.$ss().get() + 1;
+        let val = cpu.$ss().get().wrapping_add(1);
         cpu.$ss().set(val);
     }) }
     // INC sp
     macro_rules! inc_sp { () => ({
-        cpu.sp += 1;
+        cpu.sp = cpu.sp.wrapping_add(1);
     }) }
     // DEC r
     macro_rules! dec_r { ($r: ident) => ({
-        cpu.$r -= 1;
+        cpu.$r = cpu.$r.wrapping_sub(1);
         cpu.f &= CARRY_FLAG;
         cpu.f |= ADD_SUB_FLAG;
         if (cpu.$r & 0xf) == 0xf { cpu.f |= HALF_CARRY_FLAG; }
@@ -266,7 +266,7 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
     }) }
     // DEC (HL)
     macro_rules! dec_HL { () => ({
-        let val = mem.lb(cpu.hl().get()) - 1;
+        let val = mem.lb(cpu.hl().get()).wrapping_sub(1);
         mem.sb(cpu.hl().get(), val);
 
         cpu.f &= CARRY_FLAG;
@@ -276,12 +276,12 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
     }) }
     // DEC ss
     macro_rules! dec_ss { ($ss: ident) => ({
-        let val = cpu.$ss().get() - 1;
+        let val = cpu.$ss().get().wrapping_sub(1);
         cpu.$ss().set(val);
     }) }
     // DEC sp
     macro_rules! dec_sp { () => ({
-        cpu.sp -= 1;
+        cpu.sp = cpu.sp.wrapping_sub(1);
     }) }
 
     // DAA
@@ -346,7 +346,7 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
     }) }
     // JP c, nn
     macro_rules! jp_cnn { ($c: expr) => (
-        if $c { jp_nn!(); 4 } else { cpu.pc += 2; 3 }
+        if $c { jp_nn!(); 4 } else { cpu.pc = cpu.pc.wrapping_add(2); 3 }
     ) }
     // JP hl
     macro_rules! jp_hl { () => ({
@@ -356,12 +356,12 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
     // JR e
     macro_rules! jr_e { () => ({
         // Get offset as a 2s-complement integer
-        let offset = (mem.lb(cpu.bump()) as i8) as i16;
-        cpu.pc = (cpu.pc as i16 + offset) as u16;
+        let offset = (mem.lb(cpu.bump()) as i8) as i32;
+        cpu.pc = (cpu.pc as i32 + offset) as u16;
     }) }
     // JR c, e
     macro_rules! jr_ce { ($c: expr) => (
-        if $c { jr_e!(); 3 } else { cpu.pc += 1; 2 }
+        if $c { jr_e!(); 3 } else { cpu.pc = cpu.pc.wrapping_add(1); 2 }
     ) }
     // JP (HL)
     macro_rules! jp_HL { () => ({
@@ -376,7 +376,7 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
     }) }
     // CALL c, nn
     macro_rules! call_cnn { ($cc: expr) => (
-        if $cc { call_nn!(); 6 } else { cpu.pc += 2; 3 }
+        if $cc { call_nn!(); 6 } else { cpu.pc = cpu.pc.wrapping_add(2); 3 }
     ) }
     // RET
     macro_rules! ret { () => ({
@@ -403,12 +403,12 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
 
     macro_rules! inc_hl { () => ({
         let v = cpu.hl().get();
-        cpu.hl().set(v + 1);
+        cpu.hl().set(v.wrapping_add(1));
     }) }
 
     macro_rules! dec_hl { () => ({
         let v = cpu.hl().get();
-        cpu.hl().set(v - 1);
+        cpu.hl().set(v.wrapping_sub(1));
     }) }
 
     // LD sp, nn
@@ -440,7 +440,7 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
     }) }
     // LD HL,SP+n
     macro_rules! ld_hlspn { () => ({
-        let val = ((get_n!() as i8) as i16 + cpu.sp as i16) as u16;
+        let val = ((get_n!() as i8) as i32 + cpu.sp as i32) as u16;
         cpu.hl().set(val);
     }) }
 

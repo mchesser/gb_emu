@@ -482,6 +482,6 @@ pub fn oam_dma_transfer(mem: &mut Memory) {
     let start_addr = (mem.gpu.dma as u16) << 8;
 
     for i in (0..OAM_SIZE) {
-        mem.gpu.oam[i] = mem.lb(start_addr + i as u16);
+        mem.gpu.oam[i] = mem.lb(start_addr.wrapping_add(i as u16));
     }
 }

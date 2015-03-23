@@ -218,7 +218,7 @@ impl Memory {
 
     /// Load a word from memory
     pub fn lw(&self, addr: u16) -> u16 {
-        (self.lb(addr) as u16) + ((self.lb(addr + 1) as u16) << 8)
+        (self.lb(addr) as u16) + ((self.lb(addr.wrapping_add(1)) as u16) << 8)
     }
 
     /// Store a byte in memory
@@ -323,6 +323,6 @@ impl Memory {
     /// in [addr+1].
     pub fn sw(&mut self, addr: u16, value: u16) {
         self.sb(addr, value as u8);
-        self.sb(addr + 1, (value >> 8) as u8);
+        self.sb(addr.wrapping_add(1), (value >> 8) as u8);
     }
 }
