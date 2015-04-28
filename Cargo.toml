@@ -5,3 +5,6 @@ authors = ["Michael Chesser"]
 
 [lib]
 name = "gb_emu"
+
+[dependencies]
+num = "*"

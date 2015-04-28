@@ -1,18 +1,17 @@
 //! Manages the gameboy joypad.
 
-#[derive(Copy)]
+#[derive(Clone, Copy)]
 pub enum ReadMode {
     Button,
     Direction,
 }
 
-#[derive(Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum State {
     Pressed = 0,
     Released = 1,
 }
 
-#[allow(missing_copy_implementations)]
 pub struct Joypad {
     pub start: State,
     pub select: State,

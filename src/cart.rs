@@ -2,7 +2,7 @@
 use std::slice::bytes::copy_memory;
 
 use cart::MemoryBankController::{NoMbc, Mbc1, Mbc2, Mbc3};
-#[derive(Debug, Copy, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum MemoryBankController {
     NoMbc, // No memory bank controller (32Kbyte ROM only)
     Mbc1,  // Max 2MBbyte ROM and/or 32KByte RAM
@@ -12,7 +12,7 @@ pub enum MemoryBankController {
     // Huc1,  // MBC with Infrared Controller
 }
 
-#[derive(Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum BankingMode {
     Rom,
     Ram,
@@ -162,7 +162,7 @@ impl Cartridge {
 
     pub fn load(&mut self, data: &[u8], save_file: Option<Box<SaveFile>>) {
         for (i, chunk) in data.chunks(0x4000).enumerate() {
-            copy_memory(&mut self.rom[i], chunk);
+            copy_memory(chunk, &mut self.rom[i]);
         }
 
         // Get the type of memory bank controller from the cart

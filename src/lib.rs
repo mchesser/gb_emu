@@ -1,5 +1,7 @@
 #![feature(box_syntax, unboxed_closures, core)]
 
+extern crate num;
+
 pub mod emulator;
 pub mod cpu;
 pub mod mmu;

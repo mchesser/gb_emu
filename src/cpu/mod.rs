@@ -1,5 +1,3 @@
-use std::num::Int;
-
 use cpu::exec::fetch_exec;
 use mmu::Memory;
 
@@ -13,7 +11,7 @@ static INTERRUPT_TABLE: [u16; 5] = [
     0x0060,   // Joypad
 ];
 
-#[derive(Copy)]
+#[derive(Clone, Copy)]
 #[repr(u8)]
 pub enum Interrupt {
     VBlank = 0b00000001,
@@ -23,7 +21,7 @@ pub enum Interrupt {
     Joypad = 0b00010000,
 }
 
-#[derive(PartialEq, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum State {
     Running,
     Stopped,
@@ -41,7 +39,6 @@ pub enum State {
 /// * ime : Interrupt flags register (8-bit)
 ///
 /// In addition, the main register set can be combined into 16-bit registers: af, bc, de, hl
-#[allow(missing_copy_implementations)]
 pub struct Cpu {
     pub crashed: bool,
 

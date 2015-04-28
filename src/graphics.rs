@@ -43,7 +43,7 @@ pub fn get_color_id(low: u8, high: u8, x: usize) -> usize {
     ((((high >> x) & 1) << 1) | ((low >> x) & 1)) as usize
 }
 
-#[derive(Copy)]
+#[derive(Clone, Copy)]
 pub enum Mode {
     HBlank   = 0,
     VBlank   = 1,
