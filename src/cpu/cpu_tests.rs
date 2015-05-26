@@ -275,7 +275,7 @@ mod cpu_tests {
 
         m.sb(c.pc + 0, 0x19);   // add hl,de
         let cycles = instruction_runner(&mut *c, &mut *m, 1);
-        assert_eq!(c.hl().get(), 0x4242_u16 + 0x1111_u16);
+        assert_eq!(c.hl().get(), (0x4242_u16).wrapping_add(0x1111_u16));
         assert_eq!(c.f, 0);
         assert_eq!(cycles, 8);
     }
@@ -290,7 +290,7 @@ mod cpu_tests {
 
         m.sb(c.pc + 0, 0x19);   // add hl,de
         let cycles = instruction_runner(&mut *c, &mut *m, 1);
-        assert_eq!(c.hl().get(), 0x1F11_u16 + 0x1111_u16);
+        assert_eq!(c.hl().get(), (0x1F11_u16).wrapping_add(0x1111_u16));
         assert_eq!(c.f, H);
         assert_eq!(cycles, 8);
     }
@@ -305,7 +305,7 @@ mod cpu_tests {
 
         m.sb(c.pc + 0, 0x19);   // add hl,de
         let cycles = instruction_runner(&mut *c, &mut *m, 1);
-        assert_eq!(c.hl().get(), 0xF111_u16 + 0x1111_u16);
+        assert_eq!(c.hl().get(), (0xF111_u16).wrapping_add(0x1111_u16));
         assert_eq!(c.f, C);
         assert_eq!(cycles, 8);
     }
@@ -388,7 +388,7 @@ mod cpu_tests {
         c.sp = 100;
 
         m.sb(c.pc + 0, 0xE8);   // add sp,
-        m.sb(c.pc + 1, -2);     // -2
+        m.sb(c.pc + 1, (-2i8) as u8);     // -2
         let cycles = instruction_runner(&mut *c, &mut *m, 1);
         assert_eq!(c.sp, 98);
         assert_eq!(c.pc, 0xE002);
@@ -417,7 +417,7 @@ mod cpu_tests {
         c.hl().set(0);
 
         m.sb(c.pc + 0, 0xF8);   // ld hl,sp +
-        m.sb(c.pc + 1, -2);     // -2
+        m.sb(c.pc + 1, (-2i8) as u8);     // -2
         let cycles = instruction_runner(&mut *c, &mut *m, 1);
         assert_eq!(c.sp, 100);
         assert_eq!(c.hl().get(), 98);
@@ -525,7 +525,7 @@ mod cpu_tests {
         let (mut c, mut m) = init();
 
         m.sb(c.pc + 0, 0x18);   // jr
-        m.sb(c.pc + 1, -2);     // -2
+        m.sb(c.pc + 1, (-2i8) as u8);     // -2
         let cycles = instruction_runner(&mut *c, &mut *m, 1);
         assert_eq!(c.pc, 0xE002 - 2);
         assert_eq!(cycles, 12);
