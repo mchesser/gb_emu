@@ -1,6 +1,7 @@
 //! Emulates the various functionality of the cartridges
 
 use cart::MemoryBankController::{NoMbc, Mbc1, Mbc2, Mbc3};
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum MemoryBankController {
     NoMbc, // No memory bank controller (32Kbyte ROM only)
@@ -117,7 +118,7 @@ pub struct Cartridge {
     selected_banking_mode: BankingMode,
 
     /// Rom banks (maximum of 128 banks = 2MB, mapped to: 0x0000-0x7FFFF)
-    pub rom: [[u8; 0x4000]; 128],
+    pub rom: Vec<Vec<u8>>,
     /// The currently mapped rom bank (bank 0 is always mapped)
     pub rom_bank: usize,
 
@@ -142,7 +143,7 @@ impl Cartridge {
             mbc: NoMbc,
             selected_banking_mode: BankingMode::Rom,
 
-            rom: [[0; 0x4000]; 128],
+            rom: vec![vec![0; 0x4000]; 128],
             rom_bank: 1,
 
             ram: [0; 0x2000 * 4],

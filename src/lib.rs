@@ -1,5 +1,3 @@
-#![feature(box_syntax)]
-
 pub mod emulator;
 pub mod cpu;
 pub mod mmu;

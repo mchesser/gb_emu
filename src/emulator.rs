@@ -13,7 +13,7 @@ pub enum DeviceMode {
 
 pub struct Emulator {
     pub mem: Memory,
-    cpu: Cpu,
+    pub cpu: Cpu,
     cycles: i32,
 }
 
