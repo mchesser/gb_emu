@@ -1,7 +1,6 @@
 use mmu::Memory;
 use cpu::Interrupt;
 
-#[allow(missing_copy_implementations)]
 pub struct Timer {
     /// Divider register (mapped to: 0xFF04)
     pub div: u8,
@@ -44,13 +43,15 @@ impl Timer {
 
 pub fn step(mem: &mut Memory, ticks: u8) {
     mem.timer.internal_div += ticks as u16 / 4;
-    mem.timer.internal_tima += ticks as u16 / 4;
+
+    // TODO: Check overflow behaviour when (mem.timer.tac & 0x4) != 0
+    mem.timer.internal_tima = mem.timer.internal_tima.wrapping_add(ticks as u16 / 4);
 
     if mem.timer.internal_div >= 64 {
         tick_divider(mem);
         mem.timer.internal_div -= 64;
     }
-    if mem.timer.tac & 0x4 != 0 {
+    if (mem.timer.tac & 0x4) != 0 {
         let speed = mem.timer.get_tima_speed();
         if mem.timer.internal_tima >= speed {
             tick_counter(mem);
@@ -60,15 +61,16 @@ pub fn step(mem: &mut Memory, ticks: u8) {
 }
 
 
-/// Ticks the divider register by 1. This function should be called at a rate of `16,384`.
+/// Ticks the divider register by 1. This function should be called at a rate of `16,384 Hz`.
 fn tick_divider(mem: &mut Memory) {
-    mem.timer.div += 1;
+    // TODO: investigate overflow behaviour of this value
+    mem.timer.div = mem.timer.div.wrapping_add(1);
 }
 
 /// Ticks the timer counter register by 1. This function should be called at the frequency specified
 /// in the timer control register.
 fn tick_counter(mem: &mut Memory) {
-    mem.timer.tima += 1;
+    mem.timer.tima = mem.timer.tima.wrapping_add(1);
 
     // Set interrupt bit if the value overflowed
     if mem.timer.tima == 0 {

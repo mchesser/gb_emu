@@ -1,10 +1,5 @@
 [package]
 name = "gb_emu"
-version = "0.0.1"
+version = "0.0.2"
 authors = ["Michael Chesser"]
 
-[lib]
-name = "gb_emu"
-
-[dependencies]
-num = "*"

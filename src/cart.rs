@@ -1,5 +1,4 @@
 //! Emulates the various functionality of the cartridges
-use std::slice::bytes::copy_memory;
 
 use cart::MemoryBankController::{NoMbc, Mbc1, Mbc2, Mbc3};
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -137,6 +136,7 @@ pub struct Cartridge {
 }
 
 impl Cartridge {
+    /// Create a new cartridge with empty data.
     pub fn new() -> Cartridge {
         Cartridge {
             mbc: NoMbc,
@@ -160,9 +160,10 @@ impl Cartridge {
         0x2000 * self.ram_bank + (addr & 0x1FFF) as usize
     }
 
+    /// Load cartridge data from a data buffer, and optimally load a save file.
     pub fn load(&mut self, data: &[u8], save_file: Option<Box<SaveFile>>) {
         for (i, chunk) in data.chunks(0x4000).enumerate() {
-            copy_memory(chunk, &mut self.rom[i]);
+            self.rom[i].copy_from_slice(chunk);
         }
 
         // Get the type of memory bank controller from the cart
@@ -199,6 +200,7 @@ impl Cartridge {
         }
     }
 
+    /// Read data from a memory mapped address
     pub fn read(&self, addr: u16) -> u8 {
         // FIXME(minor): should probably handle invalid memory accesses depending on the memory bank
         // controller more carefully.
@@ -214,6 +216,7 @@ impl Cartridge {
         }
     }
 
+    /// Write data to a memory mapped address
     pub fn write(&mut self, addr: u16, value: u8) {
         match addr {
             0x0000 ... 0x1FFF => match self.mbc {

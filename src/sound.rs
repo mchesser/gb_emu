@@ -1,7 +1,6 @@
 //! Manages the gameboy sound controller
 //! This is mostly incomplete, at the moment all this does is manage the sound registers.
 
-#[allow(missing_copy_implementations)]
 pub struct SoundController {
     /// Channel 1 Sweep register
     pub nr10: u8,

@@ -1,6 +1,4 @@
-#![feature(box_syntax, unboxed_closures, core)]
-
-extern crate num;
+#![feature(box_syntax)]
 
 pub mod emulator;
 pub mod cpu;
@@ -10,4 +8,4 @@ pub mod graphics;
 pub mod timer;
 pub mod sound;
 pub mod joypad;
-pub mod debug;
+// pub mod debug;

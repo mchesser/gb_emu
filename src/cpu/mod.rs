@@ -109,7 +109,8 @@ impl Cpu {
         }
 
         // TODO: add support for CGB double speed mode
-        self.clock += elapsed_cycles * 4;
+        // TODO: better overflow handling
+        self.clock = self.clock.wrapping_add(elapsed_cycles * 4);
         elapsed_cycles * 4
     }
 

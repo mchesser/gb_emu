@@ -263,7 +263,7 @@ impl Gpu {
         let mut tile_x = self.scx % TILE_SIZE as u8;
 
         let mut draw_offset = self.ly as usize * WIDTH * BYTES_PER_PIXEL;
-        for x in (0..WIDTH) {
+        for x in 0..WIDTH {
             // Move to the next tile if we have reached the end of the current tile
             if tile_x >= TILE_SIZE as u8 {
                 tile_x = 0;
@@ -302,7 +302,7 @@ impl Gpu {
         let row_start = self.ly as usize * WIDTH;
         let mut draw_offset = row_start * BYTES_PER_PIXEL;
 
-        for x in (0..WIDTH) {
+        for x in 0..WIDTH {
             // Not sure why the tile_x needs to be reversed here.
             let color_id = self.tile_lookup(tile_id, 7 - tile_x, tile_y);
             self.pixel_priorities[row_start + x] = color_id as u8;
@@ -369,7 +369,7 @@ impl Gpu {
             debug_assert!((tile_y as usize) < TILE_SIZE);
 
             let row_start = self.ly as usize * WIDTH;
-            for dx in (0..(TILE_SIZE as isize)) {
+            for dx in 0..(TILE_SIZE as isize) {
                 // Check that this pixel is not off the screen
                 if x_pos + dx >= 0 && x_pos + dx < WIDTH as isize {
                     // Flip x coordinate if bit 5 is set
@@ -481,7 +481,7 @@ pub fn write_pixel(framebuffer: &mut [u8], offset: usize, color: Color) {
 pub fn oam_dma_transfer(mem: &mut Memory) {
     let start_addr = (mem.gpu.dma as u16) << 8;
 
-    for i in (0..OAM_SIZE) {
+    for i in 0..OAM_SIZE {
         mem.gpu.oam[i] = mem.lb(start_addr.wrapping_add(i as u16));
     }
 }

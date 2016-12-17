@@ -91,7 +91,7 @@ fn check_branch_instructions(logger: &mut Logger, cpu: &Cpu, mem: &Memory) {
         Branch::Return => {
             let ret_location = mem.lw(cpu.sp);
             if let Some(i) = logger.call_stack.iter().rev().position(|&addr| addr == ret_location) {
-                for _ in (0..i + 1) {
+                for _ in 0..i + 1 {
                     logger.call_stack.pop();
                 }
                 print_text(logger, "RETURN");
@@ -138,7 +138,7 @@ fn print_text(logger: &Logger, text: &str) {
 }
 
 fn print_tabbing(logger: &Logger) {
-    for _ in (0..logger.call_stack.len()) {
+    for _ in 0..logger.call_stack.len() {
         print!("    ")
     }
 }
