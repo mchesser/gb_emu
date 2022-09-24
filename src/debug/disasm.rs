@@ -1,6 +1,6 @@
 //! Module for disassembling opcodes into human readable representations
 
-use mmu::Memory;
+use crate::mmu::Memory;
 
 fn invalid_inst(op: u8) -> String {
     format!("0x{:2X}", op)
@@ -286,8 +286,6 @@ pub fn disasm(mut addr: u16, mem: &Memory) -> String {
         0xFD => invalid_inst(op),
         0xFE => format!("cp\t\ta, {}", get_n!()),
         0xFF => format!("rst\t\t38h"),
-
-         _ => unreachable!()
     }
 }
 
@@ -566,7 +564,5 @@ fn disasm_long(addr: u16, mem: &Memory) -> String{
         0xFD => format!("set\t\t7, l"),
         0xFE => format!("set\t\t7, (hl)"),
         0xFF => format!("set\t\t7, a"),
-
-        _ => unreachable!()
     }
 }

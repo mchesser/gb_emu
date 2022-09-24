@@ -1,22 +1,21 @@
-use cpu::exec::fetch_exec;
-use mmu::Memory;
+use crate::{cpu::exec::fetch_exec, mmu::Memory};
 
 pub mod exec;
 
 static INTERRUPT_TABLE: [u16; 5] = [
-    0x0040,   // V-Blank
-    0x0048,   // LCD STAT
-    0x0050,   // Timer
-    0x0058,   // Serial
-    0x0060,   // Joypad
+    0x0040, // V-Blank
+    0x0048, // LCD STAT
+    0x0050, // Timer
+    0x0058, // Serial
+    0x0060, // Joypad
 ];
 
 #[derive(Clone, Copy)]
 #[repr(u8)]
 pub enum Interrupt {
     VBlank = 0b00000001,
-    Stat   = 0b00000010,
-    Timer  = 0b00000100,
+    Stat = 0b00000010,
+    Timer = 0b00000100,
     Serial = 0b00001000,
     Joypad = 0b00010000,
 }
@@ -65,7 +64,14 @@ impl Cpu {
         Cpu {
             crashed: true,
 
-            a: 0, b: 0, c: 0, d: 0, e: 0, f: 0, h: 0, l: 0,
+            a: 0,
+            b: 0,
+            c: 0,
+            d: 0,
+            e: 0,
+            f: 0,
+            h: 0,
+            l: 0,
 
             ime: 0,
 
@@ -198,16 +204,15 @@ impl Cpu {
 }
 
 // The 8-bit registers in the main register set can be joint to form 16-bit registers.
-macro_rules! join_regs { (($r1: ident, $r2: ident) as $name: ident) => (
-    impl Cpu {
-        pub fn $name(&mut self) -> JointReg {
-            JointReg {
-                high: &mut self.$r1,
-                low: &mut self.$r2,
+macro_rules! join_regs {
+    (($r1: ident, $r2: ident) as $name: ident) => {
+        impl Cpu {
+            pub fn $name(&mut self) -> JointReg {
+                JointReg { high: &mut self.$r1, low: &mut self.$r2 }
             }
         }
-    }
-) }
+    };
+}
 
 join_regs!((b, c) as bc);
 join_regs!((d, e) as de);

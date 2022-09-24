@@ -2,17 +2,17 @@
 //! emulator itself.
 //! Currently is main purpose is to print subroutine calls with some structure.
 
-use cpu::{Cpu, State};
-use mmu::Memory;
-use debug::symbols::{SymbolTable, build_symbol_table};
-use debug::disasm::disasm;
+use crate::{
+    cpu::{Cpu, State},
+    debug::disasm::disasm,
+    debug::symbols::{build_symbol_table, SymbolTable},
+    mmu::Memory,
+};
 
-pub mod symbols;
 pub mod disasm;
+pub mod symbols;
 
-const HIDDEN_FUNCTIONS: &'static [(u8, u16)] = &[
-];
-
+const HIDDEN_FUNCTIONS: &'static [(u8, u16)] = &[];
 
 pub struct Logger {
     symbols: SymbolTable,
@@ -35,7 +35,9 @@ impl Logger {
 }
 
 pub fn stack_traces(logger: &mut Logger, cpu: &Cpu, mem: &Memory) {
-    if cpu.crashed { return }
+    if cpu.crashed {
+        return;
+    }
 
     if logger.hide_output && logger.call_stack.len() <= logger.reveal_at {
         logger.hide_output = false;
@@ -86,7 +88,7 @@ fn check_branch_instructions(logger: &mut Logger, cpu: &Cpu, mem: &Memory) {
             print_call(logger, (bank_num, addr));
             logger.call_stack.push(cpu.pc + 3);
             hide_check(logger, (bank_num, addr));
-        },
+        }
 
         Branch::Return => {
             let ret_location = mem.lw(cpu.sp);
@@ -99,21 +101,23 @@ fn check_branch_instructions(logger: &mut Logger, cpu: &Cpu, mem: &Memory) {
             else {
                 print_text(logger, "RETURN from manually created stackframe");
             }
-        },
+        }
 
         Branch::ReturnFromException => {
             if logger.call_stack.last() == Some(&mem.lw(cpu.sp)) {
                 logger.call_stack.pop();
                 print_text(logger, "----| RETURN |----");
             }
-        },
+        }
 
-        _ => {},
+        _ => {}
     }
 }
 
 fn print_jump(logger: &Logger, key: (u8, u16)) {
-    if logger.hide_output { return }
+    if logger.hide_output {
+        return;
+    }
 
     print_tabbing(logger);
     print!("->");
@@ -122,7 +126,9 @@ fn print_jump(logger: &Logger, key: (u8, u16)) {
 }
 
 fn print_call(logger: &Logger, key: (u8, u16)) {
-    if logger.hide_output { return }
+    if logger.hide_output {
+        return;
+    }
 
     print_tabbing(logger);
     print!("CALL: ");
@@ -131,7 +137,9 @@ fn print_call(logger: &Logger, key: (u8, u16)) {
 }
 
 fn print_text(logger: &Logger, text: &str) {
-    if logger.hide_output { return }
+    if logger.hide_output {
+        return;
+    }
 
     print_tabbing(logger);
     println!("{}", text);
@@ -151,7 +159,9 @@ fn print_symbol(logger: &Logger, key: (u8, u16)) {
 }
 
 fn hide_check(logger: &mut Logger, key: (u8, u16)) {
-    if logger.hide_output { return }
+    if logger.hide_output {
+        return;
+    }
 
     if HIDDEN_FUNCTIONS.contains(&key) {
         logger.hide_output = true;
@@ -168,6 +178,7 @@ enum Branch {
     None,
 }
 
+#[rustfmt::skip]
 fn branch_decoder(mut addr: u16, mem: &Memory, flags: u8) -> Branch {
     macro_rules! get_n { () => ({ addr += 1; mem.lb(addr - 1) }) }
     macro_rules! get_ni { () => (get_n!() as i8) }

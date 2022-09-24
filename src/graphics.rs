@@ -1,5 +1,4 @@
-use mmu::Memory;
-use cpu::Interrupt;
+use crate::{cpu::Interrupt, mmu::Memory};
 
 pub const WIDTH: usize = 160;
 pub const HEIGHT: usize = 144;
@@ -11,7 +10,7 @@ const OAM_SIZE: usize = 0xA0;
 /// The width (in pixels) of the BG map
 const MAP_WIDTH: usize = 256;
 /// The height (int pixels) of the BG map
-const MAP_HEIGHT: usize = 256;
+const _MAP_HEIGHT: usize = 256;
 
 /// The size of a tile (in pixels)
 pub const TILE_SIZE: usize = 8;
@@ -45,9 +44,9 @@ pub fn get_color_id(low: u8, high: u8, x: usize) -> usize {
 
 #[derive(Clone, Copy)]
 pub enum Mode {
-    HBlank   = 0,
-    VBlank   = 1,
-    OamRead  = 2,
+    HBlank = 0,
+    VBlank = 1,
+    OamRead = 2,
     VramRead = 3,
 }
 
@@ -57,7 +56,7 @@ struct LcdStatRegister {
     vblank_interrupt: bool, // Bit 4
     hblank_interrupt: bool, // Bit 3
     // lcy_flag: bool          Bit 2 (generated automatically)
-    mode: Mode,             // Bit 0-1
+    mode: Mode, // Bit 0-1
 }
 
 impl LcdStatRegister {
@@ -94,29 +93,27 @@ pub struct Gpu {
     /// The GB sprite access table (OAM) (mapped to: [0xFE00-0xFF9F])
     pub oam: [u8; OAM_SIZE],
 
-    pub lcdc: u8,              // LCD Control Register (0xFF40)
-    stat: LcdStatRegister,     // LCD Status Register (0xFF42)
+    pub lcdc: u8,          // LCD Control Register (0xFF40)
+    stat: LcdStatRegister, // LCD Status Register (0xFF42)
 
-    pub scy: u8,    // Scroll Y register (0xFF42)
-    pub scx: u8,    // Scroll X Register (0xFF43)
-    pub ly: u8,     // LCDC Y-Coordinate Register (0xFF44)
-    pub lyc: u8,    // LY Compare Register (0xFF45)
-    pub wy: u8,     // Window Y Position Register (0xFF4A)
-    pub wx: u8,     // Window X Position Register (0xFF4B)
+    pub scy: u8, // Scroll Y register (0xFF42)
+    pub scx: u8, // Scroll X Register (0xFF43)
+    pub ly: u8,  // LCDC Y-Coordinate Register (0xFF44)
+    pub lyc: u8, // LY Compare Register (0xFF45)
+    pub wy: u8,  // Window Y Position Register (0xFF4A)
+    pub wx: u8,  // Window X Position Register (0xFF4B)
 
-    pub bgp: u8,    // Bg Palette Data Register (mapped to: 0xFF47)
-    pub obp0: u8,   // Object Palette 0 Data (mapped to: 0xFF48)
-    pub obp1: u8,   // Object Palette 1 Data (mapped to: 0xFF49)
+    pub bgp: u8,  // Bg Palette Data Register (mapped to: 0xFF47)
+    pub obp0: u8, // Object Palette 0 Data (mapped to: 0xFF48)
+    pub obp1: u8, // Object Palette 1 Data (mapped to: 0xFF49)
 
     // TODO: implement CGB colour palettes
     // pub bcps: u8,
     // pub bcpd: u8,
     // pub ocps: u8,
     // pub ocpd: u8,
-
     /// LCD OAM DMA controller (mapped to: 0xFF46)
     pub dma: u8,
-
     // TODO: implement CGB DMA controllers
     // pub hdma1: u8,
     // pub hdma2: u8,
@@ -177,7 +174,9 @@ impl Gpu {
     /// Adjust a tile id based on the currently selected tile set
     fn adjust_tile_id(&self, tile_id: u8) -> usize {
         if self.lcdc & 0b0001_0000 == 0 {
-            if tile_id < 128 { return tile_id as usize + 256 }
+            if tile_id < 128 {
+                return tile_id as usize + 256;
+            }
         }
         tile_id as usize
     }
@@ -211,18 +210,28 @@ impl Gpu {
     /// Returns the value of the lcd status register
     pub fn get_stat(&self) -> u8 {
         let mut result = self.stat.mode as u8;
-        if self.stat.lyc_interrupt { result |= 0b01000000 }
-        if self.stat.oam_interrupt { result |= 0b00100000 }
-        if self.stat.vblank_interrupt { result |= 0b00010000 }
-        if self.stat.hblank_interrupt { result |= 0b00001000 }
-        if self.lyc == self.ly { result |= 0b00000100 }
+        if self.stat.lyc_interrupt {
+            result |= 0b01000000
+        }
+        if self.stat.oam_interrupt {
+            result |= 0b00100000
+        }
+        if self.stat.vblank_interrupt {
+            result |= 0b00010000
+        }
+        if self.stat.hblank_interrupt {
+            result |= 0b00001000
+        }
+        if self.lyc == self.ly {
+            result |= 0b00000100
+        }
         result
     }
 
     /// Set the value of the lcd status register
     pub fn set_stat(&mut self, val: u8) {
-        self.stat.lyc_interrupt =    (val & 0b01000000) != 0;
-        self.stat.oam_interrupt =    (val & 0b00100000) != 0;
+        self.stat.lyc_interrupt = (val & 0b01000000) != 0;
+        self.stat.oam_interrupt = (val & 0b00100000) != 0;
         self.stat.vblank_interrupt = (val & 0b00010000) != 0;
         self.stat.hblank_interrupt = (val & 0b00001000) != 0;
 
@@ -254,8 +263,8 @@ impl Gpu {
     }
 
     fn render_bg_scanline(&mut self) {
-        let map_base = self.bgmap_base_offset() + (self.ly + self.scy) as usize / TILE_SIZE *
-            (MAP_WIDTH / TILE_SIZE);
+        let map_base = self.bgmap_base_offset()
+            + (self.ly + self.scy) as usize / TILE_SIZE * (MAP_WIDTH / TILE_SIZE);
         let mut current_tile = self.get_bgmap_offset(0) + map_base;
         let mut tile_id = self.adjust_tile_id(self.vram()[current_tile]);
 
@@ -287,11 +296,11 @@ impl Gpu {
         // If the current line is less than the window's y offset or the window's x offset if off
         // the screen, then we have nothing to do for this scanline.
         if self.ly < self.wy || self.wx >= WIDTH as u8 + 7 {
-            return
+            return;
         }
 
-        let map_base = self.winmap_base_offset() + ((self.ly - self.wy) as usize / TILE_SIZE) *
-            (MAP_WIDTH / TILE_SIZE);
+        let map_base = self.winmap_base_offset()
+            + ((self.ly - self.wy) as usize / TILE_SIZE) * (MAP_WIDTH / TILE_SIZE);
         let mut current_tile = map_base;
         let mut tile_id = self.adjust_tile_id(self.vram()[current_tile]);
 
@@ -335,8 +344,10 @@ impl Gpu {
             let x_pos = sprite[1] as isize - 8;
 
             // Check if the sprite appears on this scanline
-            if y_pos > line_num || y_pos + sprite_height <= line_num ||
-                x_pos <= -8 || x_pos >= WIDTH as isize
+            if y_pos > line_num
+                || y_pos + sprite_height <= line_num
+                || x_pos <= -8
+                || x_pos >= WIDTH as isize
             {
                 continue;
             }
@@ -364,8 +375,8 @@ impl Gpu {
             // Get the y coordinate of the sprite. If bit 6 is set, the sprite is flipped so we take
             // the y offset from the bottom of the sprite.
             // CHECKME: how are flipped 8x16 sprites handled?
-            let tile_y = if flags & 0x40 == 0 { line_num - y_pos }
-                         else { 7 - (line_num - y_pos) } as u8;
+            let tile_y =
+                if flags & 0x40 == 0 { line_num - y_pos } else { 7 - (line_num - y_pos) } as u8;
             debug_assert!((tile_y as usize) < TILE_SIZE);
 
             let row_start = self.ly as usize * WIDTH;
@@ -382,8 +393,7 @@ impl Gpu {
                     //   buffer, then we keep the old data.
                     // - If the priority buffer contains a value greater than 3, keep the old data
                     let px_priority = self.pixel_priorities[row_start + (x_pos + dx) as usize];
-                    if color_id != 0 && (flags & 0x80 == 0 || px_priority == 0)
-                        && px_priority <= 3
+                    if color_id != 0 && (flags & 0x80 == 0 || px_priority == 0) && px_priority <= 3
                     {
                         let color = palette_lookup(palette, color_id);
                         write_pixel(&mut self.framebuffer, draw_offset as usize, color);
@@ -394,7 +404,9 @@ impl Gpu {
 
             // Only 10 sprites may be drawn per scanline, so if this was the tenth sprite then exit
             // Note: This follows the behavour for CGB, I'm not sure if this is correct for GB mode.
-            if num_sprites >= 10 { break }
+            if num_sprites >= 10 {
+                break;
+            }
         }
     }
 
@@ -423,7 +435,7 @@ pub fn step(mem: &mut Memory, ticks: u8) {
             if mem.gpu.mode_clock >= timings::OAM_READ as u16 {
                 mem.gpu.set_mode(Mode::VramRead);
             }
-        },
+        }
 
         Mode::VramRead => {
             if mem.gpu.mode_clock >= timings::VRAM_READ as u16 {
@@ -433,7 +445,7 @@ pub fn step(mem: &mut Memory, ticks: u8) {
                     mem.if_reg |= Interrupt::Stat as u8;
                 }
             }
-        },
+        }
 
         Mode::HBlank => {
             if mem.gpu.mode_clock >= timings::HBLANK as u16 {
@@ -450,7 +462,7 @@ pub fn step(mem: &mut Memory, ticks: u8) {
                     }
                 }
             }
-        },
+        }
 
         Mode::VBlank => {
             if mem.gpu.mode_clock >= timings::VBLANK as u16 {
@@ -465,7 +477,7 @@ pub fn step(mem: &mut Memory, ticks: u8) {
                     mem.if_reg |= Interrupt::Stat as u8;
                 }
             }
-        },
+        }
     }
 }
 

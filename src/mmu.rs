@@ -1,9 +1,11 @@
-use emulator::DeviceMode;
-use cart::Cartridge;
-use graphics::{self, Gpu};
-use sound::SoundController;
-use joypad::Joypad;
-use timer::Timer;
+use crate::{
+    cart::Cartridge,
+    emulator::DeviceMode,
+    graphics::{self, Gpu},
+    joypad::Joypad,
+    sound::SoundController,
+    timer::Timer,
+};
 
 /// The GB/C memory mapper
 pub struct Memory {
@@ -104,14 +106,14 @@ impl Memory {
         match mode {
             DeviceMode::SuperGameBoy => {
                 self.sb(0xFF26, 0xF0); // NR52 - More sound settings
-            },
+            }
 
             DeviceMode::GameBoyColor => {
                 self.sb(0xFF68, 0xC0); // BCPS/BGPI - Set background palette index (00, auto inc.)
                 self.sb(0xFF6A, 0xC0); // BCPD/GBPD - Set sprite palette index (00, auto inc.)
-            },
+            }
 
-            DeviceMode::GameBoy => {},
+            DeviceMode::GameBoy => {}
         }
     }
 
@@ -123,22 +125,22 @@ impl Memory {
 
     /// Load a byte from memory
     pub fn lb(&self, addr: u16) -> u8 {
-        if self.crashed { return 0; };
+        if self.crashed {
+            return 0;
+        };
 
         // Map memory reads to their correct bytes. (See: http://problemkaputt.de/pandocs.htm)
         match addr {
-            0x0000 ... 0x7FFF | 0xA000 ... 0xBFFF => self.cart.read(addr),
-            0x8000 ... 0x9FFF => self.gpu.vram()[(addr & 0x1FFF) as usize],
+            0x0000..=0x7FFF | 0xA000..=0xBFFF => self.cart.read(addr),
+            0x8000..=0x9FFF => self.gpu.vram()[(addr & 0x1FFF) as usize],
             // NOTE: Check this mapping when adding CGB support
-            0xC000 ... 0xDFFF => self.working_ram[(addr & 0x1FFF) as usize],
-            0xE000 ... 0xFDFF => self.working_ram[(addr & 0x1FFF) as usize],
-            0xFE00 ... 0xFE9F => self.gpu.oam[(addr & 0x00FF) as usize],
-            0xFEA0 ... 0xFEFF => 0xDE,
-            0xFF00 ... 0xFF7F => self.read_io(addr),
-            0xFF80 ... 0xFFFE => self.fast_ram[(addr & 0x7F) as usize],
-            0xFFFF            => self.ie_reg,
-
-            _ => unreachable!(),
+            0xC000..=0xDFFF => self.working_ram[(addr & 0x1FFF) as usize],
+            0xE000..=0xFDFF => self.working_ram[(addr & 0x1FFF) as usize],
+            0xFE00..=0xFE9F => self.gpu.oam[(addr & 0x00FF) as usize],
+            0xFEA0..=0xFEFF => 0xDE,
+            0xFF00..=0xFF7F => self.read_io(addr),
+            0xFF80..=0xFFFE => self.fast_ram[(addr & 0x7F) as usize],
+            0xFFFF => self.ie_reg,
         }
     }
 
@@ -178,7 +180,7 @@ impl Memory {
             0xFF24 => self.sound.nr50,
             0xFF25 => self.sound.nr51,
             0xFF26 => self.sound.nr52,
-            0xFF30 ... 0xFF3F => self.sound.wave_pattern_ram[(addr - 0xFF30) as usize],
+            0xFF30..=0xFF3F => self.sound.wave_pattern_ram[(addr - 0xFF30) as usize],
 
             0xFF40 => self.gpu.lcdc,
             0xFF41 => self.gpu.get_stat(),
@@ -203,16 +205,15 @@ impl Memory {
             // 0xFF6A => self.gpu.ocps,
             // 0xFF6B => self.gpu.ocpd,
             // 0xFF68 => self.gpu.bcps,
-
             0xFF70 => panic!("Should not be here in gb mode"), // TODO: WRAM Bank in cgb mode
-            0xFF72 => 0, // Undocumented
-            0xFF73 => 0, // Undocumented
-            0xFF74 => 0, // Undocumented
-            0xFF75 => 0, // Undocumented
-            0xFF76 => 0, // Undocumented - Always 0
-            0xFF77 => 0, // Undocumented - Always 0
+            0xFF72 => 0,                                       // Undocumented
+            0xFF73 => 0,                                       // Undocumented
+            0xFF74 => 0,                                       // Undocumented
+            0xFF75 => 0,                                       // Undocumented
+            0xFF76 => 0,                                       // Undocumented - Always 0
+            0xFF77 => 0,                                       // Undocumented - Always 0
 
-            _      => 0,
+            _ => 0,
         }
     }
 
@@ -223,22 +224,22 @@ impl Memory {
 
     /// Store a byte in memory
     pub fn sb(&mut self, addr: u16, value: u8) {
-        if self.crashed { return; }
+        if self.crashed {
+            return;
+        }
 
         // Map memory writes to their correct bytes. (See: http://problemkaputt.de/pandocs.htm)
         match addr {
-            0x0000 ... 0x7FFF | 0xA000 ... 0xBFFF => self.cart.write(addr, value),
-            0x8000 ... 0x9FFF => self.gpu.vram_mut()[(addr & 0x1FFF) as usize] = value,
+            0x0000..=0x7FFF | 0xA000..=0xBFFF => self.cart.write(addr, value),
+            0x8000..=0x9FFF => self.gpu.vram_mut()[(addr & 0x1FFF) as usize] = value,
             // NOTE: Check this mapping when adding CGB support
-            0xC000 ... 0xDFFF => self.working_ram[(addr & 0x1FFF) as usize] = value,
-            0xE000 ... 0xFDFF => self.working_ram[(addr & 0x1FFF) as usize] = value,
-            0xFE00 ... 0xFE9F => self.gpu.oam[(addr & 0x00FF) as usize] = value,
-            0xFEA0 ... 0xFEFF => self.invalid_memory(addr),
-            0xFF00 ... 0xFF7F => self.write_io(addr, value),
-            0xFF80 ... 0xFFFE => self.fast_ram[(addr & 0x7F) as usize] = value,
-            0xFFFF            => self.ie_reg = value,
-
-            _ => unreachable!(),
+            0xC000..=0xDFFF => self.working_ram[(addr & 0x1FFF) as usize] = value,
+            0xE000..=0xFDFF => self.working_ram[(addr & 0x1FFF) as usize] = value,
+            0xFE00..=0xFE9F => self.gpu.oam[(addr & 0x00FF) as usize] = value,
+            0xFEA0..=0xFEFF => self.invalid_memory(addr),
+            0xFF00..=0xFF7F => self.write_io(addr, value),
+            0xFF80..=0xFFFE => self.fast_ram[(addr & 0x7F) as usize] = value,
+            0xFFFF => self.ie_reg = value,
         }
     }
 
@@ -275,7 +276,7 @@ impl Memory {
             0xFF24 => self.sound.nr50 = value,
             0xFF25 => self.sound.nr51 = value,
             0xFF26 => self.sound.nr52 = value,
-            0xFF30 ... 0xFF3F => self.sound.wave_pattern_ram[(addr - 0xFF30) as usize] = value,
+            0xFF30..=0xFF3F => self.sound.wave_pattern_ram[(addr - 0xFF30) as usize] = value,
 
             0xFF40 => self.gpu.lcdc = value,
             0xFF41 => self.gpu.set_stat(value),
@@ -286,7 +287,7 @@ impl Memory {
             0xFF46 => {
                 self.gpu.dma = value;
                 graphics::oam_dma_transfer(self);
-            },
+            }
             0xFF47 => self.gpu.bgp = value,
             0xFF48 => self.gpu.obp0 = value,
             0xFF49 => self.gpu.obp1 = value,
@@ -294,11 +295,10 @@ impl Memory {
             0xFF4B => self.gpu.wx = value,
 
             // 0xFF4D => {}, // TODO: Prepare switch speed
-
             0xFF4F => self.gpu.vram_bank = value,
 
-            0xFF56 => {}, // TODO: Infrared communications port
-            0xFF57 => {}, // Undocumented
+            0xFF56 => {} // TODO: Infrared communications port
+            0xFF57 => {} // Undocumented
 
             // TODO: Map CGB registers
             // 0xFF68 => self.gpu.bcps,
@@ -306,16 +306,17 @@ impl Memory {
             // 0xFF6A => self.gpu.ocps,
             // 0xFF6B => self.gpu.ocpd,
             // 0xFF68 => self.gpu.bcps,
+            0xFF70 => {
+                panic!("Should not be here in gb mode")
+            } // TODO: WRAM Bank
+            0xFF72 => {} // Undocumented
+            0xFF73 => {} // Undocumented
+            0xFF74 => {} // Undocumented
+            0xFF75 => {} // Undocumented
+            0xFF76 => {} // Undocumented - Always 0
+            0xFF77 => {} // Undocumented - Always 0
 
-            0xFF70 => { panic!("Should not be here in gb mode") }, // TODO: WRAM Bank
-            0xFF72 => {}, // Undocumented
-            0xFF73 => {}, // Undocumented
-            0xFF74 => {}, // Undocumented
-            0xFF75 => {}, // Undocumented
-            0xFF76 => {}, // Undocumented - Always 0
-            0xFF77 => {}, // Undocumented - Always 0
-
-            _      => {},
+            _ => {}
         }
     }
 

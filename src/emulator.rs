@@ -1,8 +1,4 @@
-use mmu::Memory;
-use cart::SaveFile;
-use cpu::Cpu;
-use graphics;
-use timer;
+use crate::{cart::SaveFile, cpu::Cpu, graphics, mmu::Memory, timer};
 
 #[derive(Clone, Copy)]
 pub enum DeviceMode {
@@ -19,14 +15,10 @@ pub struct Emulator {
 
 impl Emulator {
     pub fn new() -> Emulator {
-        Emulator {
-            mem: Memory::new(),
-            cpu: Cpu::new(),
-            cycles: 0,
-        }
+        Emulator { mem: Memory::new(), cpu: Cpu::new(), cycles: 0 }
     }
 
-    pub fn load_cart(&mut self, data: &[u8], save_file: Option<Box<SaveFile>>) {
+    pub fn load_cart(&mut self, data: &[u8], save_file: Option<Box<dyn SaveFile>>) {
         self.mem.cart.load(data, save_file);
     }
 
@@ -39,8 +31,9 @@ impl Emulator {
     /// Run the emulator for one frame. To emulate the Game Boy system realistically this should be
     /// called at 60 Hz
     pub fn frame<F, G>(&mut self, mut on_tick: F, mut on_vblank: G)
-        where F: FnMut(&mut Cpu, &mut Memory),
-              G: FnMut(&mut Cpu, &mut Memory)
+    where
+        F: FnMut(&mut Cpu, &mut Memory),
+        G: FnMut(&mut Cpu, &mut Memory),
     {
         if self.mem.crashed | self.cpu.crashed {
             return;
@@ -53,8 +46,8 @@ impl Emulator {
             timer::step(&mut self.mem, instruction_time);
             graphics::step(&mut self.mem, instruction_time);
             if self.mem.gpu.vblank_flag {
-               self.mem.gpu.vblank_flag = false;
-               on_vblank(&mut self.cpu, &mut self.mem);
+                self.mem.gpu.vblank_flag = false;
+                on_vblank(&mut self.cpu, &mut self.mem);
             }
 
             self.cycles += instruction_time as i32;
@@ -62,4 +55,3 @@ impl Emulator {
         self.cycles -= graphics::timings::FULL_FRAME as i32;
     }
 }
-

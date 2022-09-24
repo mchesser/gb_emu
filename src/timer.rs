@@ -1,5 +1,4 @@
-use mmu::Memory;
-use cpu::Interrupt;
+use crate::{cpu::Interrupt, mmu::Memory};
 
 pub struct Timer {
     /// Divider register (mapped to: 0xFF04)
@@ -18,19 +17,11 @@ pub struct Timer {
 
 impl Timer {
     pub fn new() -> Timer {
-        Timer {
-            div: 0,
-            tima: 0,
-            tma: 0,
-            tac: 0,
-
-            internal_div: 0,
-            internal_tima: 0,
-        }
+        Timer { div: 0, tima: 0, tma: 0, tac: 0, internal_div: 0, internal_tima: 0 }
     }
 
     fn get_tima_speed(&self) -> u16 {
-         match self.tac & 0x3 {
+        match self.tac & 0x3 {
             0x0 => 256,
             0x1 => 4,
             0x2 => 16,
@@ -39,7 +30,6 @@ impl Timer {
         }
     }
 }
-
 
 pub fn step(mem: &mut Memory, ticks: u8) {
     mem.timer.internal_div += ticks as u16 / 4;
@@ -59,7 +49,6 @@ pub fn step(mem: &mut Memory, ticks: u8) {
         }
     }
 }
-
 
 /// Ticks the divider register by 1. This function should be called at a rate of `16,384 Hz`.
 fn tick_divider(mem: &mut Memory) {

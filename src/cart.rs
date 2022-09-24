@@ -1,15 +1,15 @@
 //! Emulates the various functionality of the cartridges
 
-use cart::MemoryBankController::{NoMbc, Mbc1, Mbc2, Mbc3};
+use crate::cart::MemoryBankController::{Mbc1, Mbc2, Mbc3, NoMbc};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum MemoryBankController {
     NoMbc, // No memory bank controller (32Kbyte ROM only)
     Mbc1,  // Max 2MBbyte ROM and/or 32KByte RAM
     Mbc2,  // Max 256Kbyte ROM and 512x4 bits RAM
-    Mbc3,  // Max 2MByte ROM and/or 32KByte RAM and Timer
-    // FIXME(minor): add support for Huc1 controller
-    // Huc1,  // MBC with Infrared Controller
+    Mbc3,  /* Max 2MByte ROM and/or 32KByte RAM and Timer
+            * FIXME(minor): add support for Huc1 controller
+            * Huc1,  // MBC with Infrared Controller */
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -55,10 +55,10 @@ impl RealTimeClock {
             2 => self.hours,
             3 => self.days as u8,
             4 => {
-                ((self.days >> 8) as u8) |
-                if self.halt { 0x40 } else { 0 } |
-                if self.carry { 0x80 } else { 0 }
-            },
+                ((self.days >> 8) as u8)
+                    | if self.halt { 0x40 } else { 0 }
+                    | if self.carry { 0x80 } else { 0 }
+            }
 
             _ => 0x00,
         }
@@ -74,8 +74,8 @@ impl RealTimeClock {
                 self.days = (((value & 1) as u16) << 8) | (self.days & 0xFF);
                 self.halt = (value & 0x40) != 0;
                 self.carry = (value & 0x80) != 0;
-            },
-            _ => {},
+            }
+            _ => {}
         }
     }
 
@@ -110,7 +110,6 @@ impl RealTimeClock {
             }
         }
     }
-
 }
 
 pub struct Cartridge {
@@ -130,7 +129,7 @@ pub struct Cartridge {
     pub ram_enabled: bool,
 
     /// The save file attached to the cartridge
-    pub save_file: Option<Box<SaveFile>>,
+    pub save_file: Option<Box<dyn SaveFile>>,
 
     /// The realtime clock attached to the cartridge
     pub rtc: RealTimeClock,
@@ -162,7 +161,7 @@ impl Cartridge {
     }
 
     /// Load cartridge data from a data buffer, and optimally load a save file.
-    pub fn load(&mut self, data: &[u8], save_file: Option<Box<SaveFile>>) {
+    pub fn load(&mut self, data: &[u8], save_file: Option<Box<dyn SaveFile>>) {
         for (i, chunk) in data.chunks(0x4000).enumerate() {
             self.rom[i].copy_from_slice(chunk);
         }
@@ -185,14 +184,15 @@ impl Cartridge {
         // 10h  MBC3+TIMER+RAM+BATTERY   FEh  HuC3
         // 11h  MBC3                     FFh  HuC1+RAM+BATTERY
         // 12h  MBC3+RAM
-        match mbc_type {
-            0x00 | 0x08 | 0x09 => { self.mbc = NoMbc; },
-            0x01 | 0x02 | 0x03 => { self.mbc = Mbc1; },
-            0x05 | 0x06 => { self.mbc = Mbc2; },
-            0x11 | 0x12 | 0x0F | 0x10 | 0x13 => { self.mbc = Mbc3; }
-
-            x => { panic!("Unsupported cartridge: {:X}", x); }
-        }
+        self.mbc = match mbc_type {
+            0x00 | 0x08 | 0x09 => NoMbc,
+            0x01 | 0x02 | 0x03 => Mbc1,
+            0x05 | 0x06 => Mbc2,
+            0x11 | 0x12 | 0x0F | 0x10 | 0x13 => Mbc3,
+            x => {
+                panic!("Unsupported cartridge: {:X}", x)
+            }
+        };
 
         // Load the save file if there is one
         self.save_file = save_file;
@@ -206,12 +206,16 @@ impl Cartridge {
         // FIXME(minor): should probably handle invalid memory accesses depending on the memory bank
         // controller more carefully.
         match addr {
-            0x0000 ... 0x3FFF => self.rom[0][(addr & 0x3FFF) as usize],
-            0x4000 ... 0x7FFF => self.rom[self.rom_bank][(addr & 0x3FFF) as usize],
-            0xA000 ... 0xBFFF => {
-                if self.rtc.is_enabled() { self.rtc.read() }
-                else { self.ram[self.ram_index(addr)] }
-            },
+            0x0000..=0x3FFF => self.rom[0][(addr & 0x3FFF) as usize],
+            0x4000..=0x7FFF => self.rom[self.rom_bank][(addr & 0x3FFF) as usize],
+            0xA000..=0xBFFF => {
+                if self.rtc.is_enabled() {
+                    self.rtc.read()
+                }
+                else {
+                    self.ram[self.ram_index(addr)]
+                }
+            }
 
             _ => unreachable!(),
         }
@@ -220,40 +224,41 @@ impl Cartridge {
     /// Write data to a memory mapped address
     pub fn write(&mut self, addr: u16, value: u8) {
         match addr {
-            0x0000 ... 0x1FFF => match self.mbc {
-                NoMbc => {},
+            0x0000..=0x1FFF => match self.mbc {
+                NoMbc => {}
                 Mbc1 => self.ram_enabled = value & 0xF == 0x0A,
                 Mbc2 => {
                     if addr & 0x0100 == 0 {
                         self.ram_enabled = !self.ram_enabled;
                     }
-                },
+                }
                 Mbc3 => {
                     self.ram_enabled = value & 0xF == 0x0A;
                     // CHECKME: Not sure if this also enables the rtc
                     // self.rtc.enabled = value == 0x0A;
-                },
+                }
             },
 
             // Set ROM bank number
-            0x2000 ... 0x3FFF => match self.mbc {
-                NoMbc => {},
+            0x2000..=0x3FFF => match self.mbc {
+                NoMbc => {}
                 Mbc1 => {
                     let high_bits = self.rom_bank as u8 & 0x60;
-                    self.rom_bank =
-                        if (value & 0x1F) == 0 { (high_bits | 1) as usize }
-                        else { (high_bits | (value & 0x1F)) as usize };
-                },
+                    self.rom_bank = if (value & 0x1F) == 0 {
+                        (high_bits | 1) as usize
+                    }
+                    else {
+                        (high_bits | (value & 0x1F)) as usize
+                    };
+                }
                 Mbc2 => self.rom_bank = (value & 0x0F) as usize,
                 Mbc3 => {
-                    self.rom_bank =
-                        if value == 0x00 { 1 }
-                        else { (value & 0x7F) as usize };
-                },
+                    self.rom_bank = if value == 0x00 { 1 } else { (value & 0x7F) as usize };
+                }
             },
 
             // Set RAM bank number, upper bits of ROM bank number or real-time-clock register select
-            0x4000 ... 0x5FFF => match self.mbc {
+            0x4000..=0x5FFF => match self.mbc {
                 NoMbc | Mbc2 => {}
                 Mbc1 => {
                     let bits = value & 0x3;
@@ -263,28 +268,34 @@ impl Cartridge {
                     else {
                         self.ram_bank = bits as usize;
                     }
-                },
+                }
                 Mbc3 => {
                     self.rtc.state = value & 0xF;
                     self.ram_bank = (value & 0x3) as usize;
-                },
+                }
             },
 
             // Set ROM/RAM mode select or latch clock data
-            0x6000 ... 0x7FFF => match self.mbc {
-                NoMbc | Mbc2 => {},
+            0x6000..=0x7FFF => match self.mbc {
+                NoMbc | Mbc2 => {}
                 Mbc1 => {
                     self.selected_banking_mode =
-                        if value & 0x1 == 0 { BankingMode::Rom }
-                        else { BankingMode::Ram };
-                },
+                        if value & 0x1 == 0 { BankingMode::Rom } else { BankingMode::Ram };
+                }
                 Mbc3 => {
                     // FIXME(major): Handle real-time-clock latch clock data
-                },
+                }
             },
 
             // Write to external ram
-            0xA000 ... 0xBFFF => self.ram[self.ram_index(addr)] = value,
+            0xA000..=0xBFFF => {
+                if self.rtc.is_enabled() {
+                    self.rtc.write(value)
+                }
+                else {
+                    self.ram[self.ram_index(addr)] = value;
+                }
+            }
 
             _ => unreachable!(),
         }

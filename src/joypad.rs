@@ -47,13 +47,17 @@ impl Joypad {
     pub fn read(&self) -> u8 {
         match self.read_mode {
             ReadMode::Button => {
-                (self.start as u8) << 3 | (self.select as u8) << 2 | (self.b as u8) << 1 |
-                    (self.a as u8)
-            },
+                (self.start as u8) << 3
+                    | (self.select as u8) << 2
+                    | (self.b as u8) << 1
+                    | (self.a as u8)
+            }
             ReadMode::Direction => {
-                (self.down as u8) << 3 | (self.up as u8) << 2 | (self.left as u8) << 1 |
-                    (self.right as u8)
-            },
+                (self.down as u8) << 3
+                    | (self.up as u8) << 2
+                    | (self.left as u8) << 1
+                    | (self.right as u8)
+            }
         }
     }
 
@@ -62,8 +66,8 @@ impl Joypad {
         match !value & 0x30 {
             0x20 => self.read_mode = ReadMode::Button,
             0x10 => self.read_mode = ReadMode::Direction,
-            0x00 => {},
-            _ => {},
+            0x00 => {}
+            _ => {}
         }
     }
 }

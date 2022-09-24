@@ -2,8 +2,7 @@
 //! differ by the registers they are acting on macros are used to reduce code duplication.
 //! (Inspired by alexchricton's GB emulator)
 
-use cpu::Cpu;
-use mmu::Memory;
+use crate::{cpu::Cpu, mmu::Memory};
 
 // Flags for the GB processor:
 pub const ZERO_FLAG: u8 = 0b1000_0000;
@@ -14,6 +13,7 @@ pub const CARRY_FLAG: u8 = 0b0001_0000;
 
 /// Fetch and execute the next instruction, returning the number of cycles used to complete the
 /// operation.
+#[rustfmt::skip]
 pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
     // Read the next byte after pc, useful for instructions requiring a `n` parameter
     macro_rules! get_n { () => (mem.lb(cpu.bump())) }
@@ -727,13 +727,12 @@ pub fn fetch_exec(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
         0xFD => cpu.invalid_inst(op),
         0xFE => { cp_an!();             2 },
         0xFF => { rst_p!(0x38);         4 },
-
-        _ => unreachable!()
     }
 }
 
 /// Execute 2-byte opcodes, returning the number of cycles required for executing the
 /// instruction
+#[rustfmt::skip]
 fn exec_long(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
     //
     // Implementation of z80 two byte instructions
@@ -1197,8 +1196,6 @@ fn exec_long(cpu: &mut Cpu, mem: &mut Memory) -> u8 {
         0xFD => { set_br!(7, l);        2 },
         0xFE => { set_bHL!(7);          4 },
         0xFF => { set_br!(7, a);        2 },
-
-        _ => unreachable!()
     }
 }
 
@@ -1209,6 +1206,7 @@ fn daa(cpu: &mut Cpu) {
     // |  0000  0NCH  AAAA AAAA | -> | AAAA AAAA FFFF FFFF |
     // Where N = ADD_SUB_FLAG, C = CARRY_FLAG, H = HALF_CARRY_FLAG, AAAA AAAA = register `a`,
     // FFFF FFFF = register `f`
+    #[rustfmt::skip]
     const DAA_TABLE: [u16; 2048] = [
         0x0080,0x0100,0x0200,0x0300,0x0400,0x0500,0x0600,0x0700,
         0x0800,0x0900,0x1000,0x1100,0x1200,0x1300,0x1400,0x1500,
@@ -1468,8 +1466,8 @@ fn daa(cpu: &mut Cpu) {
         0x9250,0x9350,0x9450,0x9550,0x9650,0x9750,0x9850,0x9950,
     ];
 
-    let index = (((cpu.f & (ADD_SUB_FLAG | CARRY_FLAG | HALF_CARRY_FLAG)) as u16) << 4) |
-                  cpu.a as u16;
+    let index =
+        (((cpu.f & (ADD_SUB_FLAG | CARRY_FLAG | HALF_CARRY_FLAG)) as u16) << 4) | cpu.a as u16;
     cpu.af().set(DAA_TABLE[index as usize]);
 }
 
